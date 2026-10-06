@@ -1,0 +1,4632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>PathPilot - Shortest-Route Parcel Delivery Puzzle</title>
+  <meta name="description" content="PathPilot: A shortest-route parcel delivery puzzle game. Master non-Euclidean road physics, asymmetric travel costs, fuel logistics, and graph theory across 15 handcrafted city districts.">
+  <style>
+    :root {
+      --bg-primary: #080c16;
+      --bg-secondary: #0f172a;
+      --bg-card: rgba(19, 27, 46, 0.88);
+      --bg-card-hover: rgba(30, 41, 59, 0.95);
+      --bg-glass: rgba(15, 23, 42, 0.82);
+      --border-color: rgba(255, 255, 255, 0.12);
+      --border-accent: rgba(56, 189, 248, 0.45);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-cyan: #38bdf8;
+      --accent-amber: #fbbf24;
+      --accent-purple: #c084fc;
+      --accent-emerald: #34d399;
+      --accent-rose: #f43f5e;
+      --road-horiz: #06b6d4;
+      --road-vert: #f59e0b;
+      --road-diag: #a855f7;
+      --font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      --font-mono: 'Consolas', 'Courier New', monospace;
+      --shadow-elevation: 0 12px 28px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+    }
+
+    [data-theme="light"] {
+      --bg-primary: #f0f4f8;
+      --bg-secondary: #ffffff;
+      --bg-card: rgba(255, 255, 255, 0.92);
+      --bg-card-hover: rgba(241, 245, 249, 1);
+      --bg-glass: rgba(255, 255, 255, 0.85);
+      --border-color: rgba(0, 0, 0, 0.12);
+      --border-accent: rgba(2, 132, 199, 0.4);
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --accent-cyan: #0284c7;
+      --accent-amber: #d97706;
+      --accent-purple: #9333ea;
+      --accent-emerald: #059669;
+      --accent-rose: #e11d48;
+      --road-horiz: #0284c7;
+      --road-vert: #d97706;
+      --road-diag: #9333ea;
+      --shadow-elevation: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    /* Universal View Container */
+    .view-screen {
+      width: 100%;
+      max-width: 1240px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 18px 30px 18px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .view-screen.active {
+      display: flex;
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Global Header & Nav */
+    header {
+      width: 100%;
+      max-width: 1240px;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      z-index: 30;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--bg-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #38bdf8, #6366f1);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.5);
+      font-size: 22px;
+      transition: transform 0.2s ease;
+    }
+
+    .brand-group:hover .brand-icon {
+      transform: scale(1.06) rotate(-3deg);
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      background: linear-gradient(90deg, #38bdf8, #818cf8, #fbbf24);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-transform: uppercase;
+      line-height: 1.1;
+    }
+
+    .brand-sub {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 0.6px;
+    }
+
+    /* Navigation Tabs */
+    .nav-tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-card);
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+    }
+
+    .nav-tab {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 7px 14px;
+      border-radius: 7px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .nav-tab:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .nav-tab.active {
+      color: #ffffff;
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
+    }
+
+    .header-quick-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .pilot-chip {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 5px 12px;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+    }
+
+    .pilot-rank-badge {
+      font-weight: 700;
+      color: var(--accent-amber);
+    }
+
+    .header-btn {
+      background: var(--bg-card);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .header-btn:hover {
+      background: var(--border-color);
+      transform: translateY(-1px);
+    }
+
+    /* =========================================================================
+       1. LANDING PAGE STYLES (#view-landing)
+       ========================================================================= */
+    .landing-hero {
+      width: 100%;
+      padding: 40px 0 30px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      position: relative;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid var(--border-accent);
+      padding: 6px 16px;
+      border-radius: 9999px;
+      color: var(--accent-cyan);
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+    }
+
+    .hero-headline {
+      font-size: 3.2rem;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      line-height: 1.1;
+      margin-bottom: 16px;
+      max-width: 900px;
+    }
+
+    .hero-headline span {
+      background: linear-gradient(90deg, #38bdf8, #818cf8, #fbbf24);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-sub {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 720px;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+
+    .hero-cta-group {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+    }
+
+    .btn-hero {
+      padding: 14px 28px;
+      font-size: 1rem;
+      font-weight: 700;
+      border-radius: 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      text-decoration: none;
+      border: none;
+    }
+
+    .btn-hero-primary {
+      background: linear-gradient(135deg, #0284c7, #4f46e5);
+      color: #ffffff;
+      box-shadow: 0 8px 24px -4px rgba(2, 132, 199, 0.5);
+    }
+
+    .btn-hero-primary:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 12px 30px -4px rgba(2, 132, 199, 0.7);
+    }
+
+    .btn-hero-secondary {
+      background: var(--bg-card);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow-elevation);
+    }
+
+    .btn-hero-secondary:hover {
+      background: var(--bg-card-hover);
+      transform: translateY(-2px);
+      border-color: var(--accent-cyan);
+    }
+
+    /* Interactive Mini-Simulator on Hero */
+    .hero-interactive-card {
+      width: 100%;
+      max-width: 860px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-accent);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: var(--shadow-elevation);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 50px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .interactive-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .interactive-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .interactive-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .interactive-canvas-container {
+      width: 100%;
+      height: 220px;
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #demo-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .interactive-explainer {
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .route-stat-box {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+      padding: 10px 14px;
+      border-left: 4px solid var(--accent-cyan);
+    }
+
+    .route-stat-box.faster {
+      border-left-color: var(--accent-emerald);
+      background: rgba(52, 211, 153, 0.08);
+    }
+
+    /* Landing Features Grid */
+    .features-section {
+      width: 100%;
+      margin-bottom: 50px;
+    }
+
+    .section-title {
+      font-size: 1.8rem;
+      font-weight: 800;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .section-sub {
+      color: var(--text-muted);
+      text-align: center;
+      font-size: 0.95rem;
+      max-width: 600px;
+      margin: 0 auto 30px auto;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: var(--shadow-elevation);
+      transition: all 0.25s ease;
+    }
+
+    .feature-card:hover {
+      border-color: var(--accent-cyan);
+      transform: translateY(-3px);
+    }
+
+    .feature-icon-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      margin-bottom: 4px;
+    }
+
+    .feature-card h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .feature-card p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Testimonials Carousel / Quotes */
+    .reviews-section {
+      width: 100%;
+      margin-bottom: 40px;
+    }
+
+    .reviews-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .review-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 16px 20px;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .review-stars {
+      color: #fbbf24;
+      font-size: 0.85rem;
+    }
+
+    .review-author {
+      font-weight: 700;
+      color: var(--text-main);
+      font-size: 0.8rem;
+      margin-top: 4px;
+    }
+
+    /* =========================================================================
+       2. GAME DASHBOARD STYLES (#view-dashboard)
+       ========================================================================= */
+    .dashboard-container {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Driver Profile Card */
+    .pilot-profile-banner {
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
+      border: 1px solid var(--border-accent);
+      border-radius: 20px;
+      padding: 22px 26px;
+      box-shadow: var(--shadow-elevation);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .pilot-identity {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .pilot-avatar-frame {
+      width: 68px;
+      height: 68px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #0284c7, #3b82f6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);
+      position: relative;
+    }
+
+    .pilot-name-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .pilot-callsign-input {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 4px 8px;
+      color: #ffffff;
+      font-size: 1.25rem;
+      font-weight: 800;
+      width: 170px;
+    }
+
+    .pilot-rank-title {
+      font-size: 0.85rem;
+      color: var(--accent-amber);
+      font-weight: 700;
+    }
+
+    /* Vehicle Skins Selector */
+    .skin-selector {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .skin-chip {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .skin-chip:hover {
+      transform: scale(1.15);
+    }
+
+    .skin-chip.selected {
+      border-color: #ffffff;
+      transform: scale(1.2);
+    }
+
+    .skin-yellow { background: #fbbf24; }
+    .skin-cyber { background: #00f0ff; }
+    .skin-turbo { background: #ef4444; }
+    .skin-stealth { background: #64748b; }
+
+    /* Career Metric Boxes */
+    .dashboard-stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      width: 100%;
+    }
+
+    .dash-stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .dash-stat-icon {
+      font-size: 1.8rem;
+    }
+
+    .dash-stat-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .dash-stat-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .dash-stat-val {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+    }
+
+    /* Daily Dispatch Banner in Dashboard */
+    .daily-banner-card {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(79, 70, 229, 0.15));
+      border: 1px solid var(--border-accent);
+      border-radius: 16px;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .daily-banner-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .daily-banner-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* District Matrix (Level Browser) */
+    .districts-container {
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .district-group {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 18px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .district-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
+    }
+
+    .district-title {
+      font-size: 1.2rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .district-badge {
+      font-size: 0.75rem;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 3px 10px;
+      border-radius: 9999px;
+      color: var(--text-muted);
+    }
+
+    .district-levels-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+    }
+
+    .dash-level-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 12px;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .dash-level-card:hover:not(.locked) {
+      border-color: var(--accent-cyan);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(56, 189, 248, 0.2);
+    }
+
+    .dash-level-card.locked {
+      opacity: 0.5;
+      cursor: not-allowed;
+      filter: grayscale(1);
+    }
+
+    .dash-level-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .dash-level-num {
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+    }
+
+    .dash-level-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-top: 2px;
+    }
+
+    .dash-level-stars {
+      color: #fbbf24;
+      font-size: 1rem;
+    }
+
+    .dash-level-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .dash-tag {
+      font-size: 0.7rem;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-muted);
+    }
+
+    .dash-level-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .dash-level-dist {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .dash-level-dist strong {
+      color: var(--accent-emerald);
+    }
+
+    .btn-launch-level {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: #ffffff;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-launch-level:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+    }
+
+    /* Achievements Showcase */
+    .achievements-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+    }
+
+    .achievement-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      opacity: 0.5;
+      filter: grayscale(1);
+      transition: all 0.3s ease;
+    }
+
+    .achievement-card.unlocked {
+      opacity: 1;
+      filter: grayscale(0);
+      border-color: rgba(251, 191, 36, 0.4);
+      background: rgba(251, 191, 36, 0.05);
+    }
+
+    .achieve-icon {
+      font-size: 1.8rem;
+    }
+
+    .achieve-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .achieve-title {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--text-main);
+    }
+
+    .achieve-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* =========================================================================
+       3. ACTIVE GAME ARENA STYLES (#view-game)
+       ========================================================================= */
+    .game-arena-wrapper {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Top Action Ribbon */
+    .arena-top-ribbon {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn-back-hub {
+      background: var(--bg-card);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-back-hub:hover {
+      background: var(--border-color);
+      transform: translateY(-1px);
+    }
+
+    .level-meta-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .game-level-tag {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: var(--accent-cyan);
+    }
+
+    /* HQ Dispatch Radio Terminal */
+    .radio-terminal {
+      width: 100%;
+      background: rgba(10, 15, 29, 0.92);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 10px;
+      padding: 7px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .radio-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      white-space: nowrap;
+    }
+
+    .radio-blink {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #38bdf8;
+      box-shadow: 0 0 8px #38bdf8;
+      animation: radioBlink 1.2s infinite ease-in-out;
+    }
+
+    @keyframes radioBlink {
+      0%, 100% { opacity: 0.3; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
+
+    .radio-ticker {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: #e2e8f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+    }
+
+    /* Live HUD Bar */
+    .hud-bar {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .hud-metrics {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .hud-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .hud-label {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: block;
+    }
+
+    .hud-val {
+      font-family: var(--font-mono);
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .hud-fuel-gauge {
+      width: 90px;
+      height: 7px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 3px;
+    }
+
+    .hud-fuel-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #34d399, #10b981);
+      border-radius: 4px;
+      transition: width 0.25s ease, background 0.25s ease;
+    }
+
+    .hud-fuel-fill.warning {
+      background: linear-gradient(90deg, #fbbf24, #f59e0b);
+    }
+
+    .hud-fuel-fill.critical {
+      background: linear-gradient(90deg, #f43f5e, #e11d48);
+      animation: pulseAlert 0.8s infinite alternate;
+    }
+
+    @keyframes pulseAlert {
+      from { opacity: 0.6; }
+      to { opacity: 1; }
+    }
+
+    .hud-buttons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-action {
+      background: var(--bg-card);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 7px 13px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+
+    .btn-action:hover:not(:disabled) {
+      background: var(--border-color);
+      transform: translateY(-1px);
+    }
+
+    .btn-action:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #0369a1, #1d4ed8);
+    }
+
+    .btn-hint {
+      background: linear-gradient(135deg, #d97706, #b45309);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    /* Main Canvas Stage */
+    .canvas-wrapper {
+      position: relative;
+      width: 100%;
+      height: 560px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      box-shadow: var(--shadow-elevation);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #game-canvas {
+      display: block;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    /* Legend Bar */
+    .legend-bar {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--bg-glass);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      font-size: 0.72rem;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 4px;
+      border-radius: 2px;
+    }
+
+    .legend-dot.horiz { background-color: var(--road-horiz); }
+    .legend-dot.vert { background-color: var(--road-vert); }
+    .legend-dot.diag { background-color: var(--road-diag); }
+
+    /* Floating Toast */
+    .game-banner {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      max-width: 340px;
+      background: var(--bg-glass);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border-accent);
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 0.82rem;
+      color: var(--text-main);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+      z-index: 10;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .game-banner.hidden {
+      opacity: 0;
+      transform: translateY(-10px);
+      pointer-events: none;
+    }
+
+    /* Mobile D-Pad */
+    .mobile-controls {
+      display: none;
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      width: 136px;
+      height: 136px;
+      z-index: 15;
+    }
+
+    .dpad-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      width: 100%;
+      height: 100%;
+      gap: 3px;
+    }
+
+    .dpad-btn {
+      background: rgba(30, 41, 59, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      color: #ffffff;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+      cursor: pointer;
+    }
+
+    .dpad-btn:active {
+      background: var(--accent-cyan);
+      transform: scale(0.92);
+    }
+
+    .dpad-btn.center {
+      background: rgba(239, 68, 68, 0.35);
+      font-size: 0.75rem;
+    }
+
+    /* =========================================================================
+       4. MODALS & POPUPS
+       ========================================================================= */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      padding: 16px;
+    }
+
+    .modal-backdrop.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-box {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      box-shadow: 0 24px 50px rgba(0, 0, 0, 0.7);
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 24px;
+      transform: scale(0.95) translateY(10px);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .modal-backdrop.active .modal-box {
+      transform: scale(1) translateY(0);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .modal-title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.4rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+    }
+
+    .modal-close:hover {
+      color: var(--text-main);
+    }
+
+    .modal-body {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 22px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .stars-container {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    .star-icon {
+      font-size: 2.8rem;
+      color: rgba(255, 255, 255, 0.15);
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .star-icon.filled {
+      color: #fbbf24;
+      text-shadow: 0 0 20px rgba(251, 191, 36, 0.8);
+      transform: scale(1.15);
+    }
+
+    /* Shop Items */
+    .shop-items {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .shop-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .shop-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .shop-name {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text-main);
+    }
+
+    .shop-desc {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .shop-qty {
+      font-size: 0.72rem;
+      color: var(--accent-cyan);
+      font-weight: 600;
+    }
+
+    /* Leaderboard Table */
+    .leaderboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+      font-size: 0.85rem;
+    }
+
+    .leaderboard-table th {
+      text-align: left;
+      padding: 8px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .leaderboard-table td {
+      padding: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Responsive */
+    @media (max-width: 860px) {
+      .hero-headline {
+        font-size: 2.2rem;
+      }
+      .interactive-body {
+        grid-template-columns: 1fr;
+      }
+      .canvas-wrapper {
+        height: 460px;
+      }
+      .mobile-controls {
+        display: block;
+      }
+      .nav-tab span {
+        display: none;
+      }
+      .nav-tab {
+        padding: 7px 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Sticky Navigation Bar -->
+  <header>
+    <div class="brand-group" id="nav-brand">
+      <div class="brand-icon">📦</div>
+      <div class="brand-text">
+        <span class="brand-title">PathPilot</span>
+        <span class="brand-sub">Shortest-Route Parcel Delivery Puzzle</span>
+      </div>
+    </div>
+
+    <!-- Navigation Switcher Tabs -->
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-view="landing" id="tab-landing">
+        <span>🏠</span> <span>Home</span>
+      </button>
+      <button class="nav-tab" data-view="dashboard" id="tab-dashboard">
+        <span>📟</span> <span>Dispatch Hub</span>
+      </button>
+      <button class="nav-tab" data-view="game" id="tab-game">
+        <span>🚚</span> <span>Mission</span>
+      </button>
+      <button class="nav-tab" id="tab-shop">
+        <span>🛒</span> <span>Garage</span>
+      </button>
+      <button class="nav-tab" id="tab-leaderboard">
+        <span>🏆</span> <span>Records</span>
+      </button>
+    </div>
+
+    <!-- Quick Pilot Status & Audio/Theme Controls -->
+    <div class="header-quick-info">
+      <div class="pilot-chip" id="header-pilot-chip">
+        <span id="header-pilot-badge">📦</span>
+        <span id="header-pilot-name" style="font-weight: 700;">Pilot Swift</span>
+        <span style="color: var(--accent-emerald); font-weight: 800;" id="header-cash">$0</span>
+      </div>
+      <button class="header-btn" id="btn-costs" title="Toggle Road Cost Badges">🏷️</button>
+      <button class="header-btn" id="btn-sound" title="Toggle Sound">🔊</button>
+      <button class="header-btn" id="btn-theme" title="Toggle Light/Dark Theme">🌙</button>
+      <button class="header-btn" id="btn-help" title="Driver's Manual & Rules">❓</button>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       VIEW 1: LANDING PAGE (#view-landing)
+       ========================================================================= -->
+  <div class="view-screen active" id="view-landing">
+    <div class="landing-hero">
+      <div class="hero-badge">⚡ Algorithmic Route Puzzle • v2.0</div>
+      <h1 class="hero-headline">Outsmart the Grid.<br><span>Deliver the Impossible.</span></h1>
+      <p class="hero-sub">
+        Welcome to <strong>PathPilot</strong>. Master asymmetric non-Euclidean road physics, fuel logistics, and Held-Karp graph theory in the ultimate shortest-route delivery game. Can your brain beat the theoretical minimum?
+      </p>
+
+      <div class="hero-cta-group">
+        <button class="btn-hero btn-hero-primary" id="landing-btn-hub">
+          <span>📟</span> Enter Dispatch Hub
+        </button>
+        <button class="btn-hero btn-hero-secondary" id="landing-btn-quick">
+          <span>⚡</span> Quick Play (Level 1)
+        </button>
+        <button class="btn-hero btn-hero-secondary" id="landing-btn-daily">
+          <span>📅</span> Today's Daily Challenge
+        </button>
+      </div>
+
+      <!-- Live Interactive Road Cost Simulator Card -->
+      <div class="hero-interactive-card">
+        <div class="interactive-header">
+          <div class="interactive-title">
+            <span>🔬</span> Interactive Asymmetric Cost Simulator
+          </div>
+          <button class="btn-action btn-primary" id="btn-demo-toggle">
+            <span>🔀</span> Compare Diagonal vs Orthogonal
+          </button>
+        </div>
+
+        <div class="interactive-body">
+          <div class="interactive-canvas-container">
+            <canvas id="demo-canvas" width="400" height="220"></canvas>
+          </div>
+          <div class="interactive-explainer">
+            <div class="route-stat-box" id="demo-ortho-box">
+              <strong style="color: var(--road-vert);">Route A (Orthogonal):</strong> 2 Horiz (2 km) + 1 Vert (2 km) = <strong>4.0 km</strong>
+            </div>
+            <div class="route-stat-box faster" id="demo-diag-box">
+              <strong style="color: var(--road-diag);">Route B (Diagonal):</strong> 1 Diag (2.5 km) + 1 Horiz (1 km) = <strong>3.5 km</strong>
+              <div style="font-size: 0.78rem; color: var(--accent-emerald); font-weight: 700; margin-top: 3px;">
+                ⚡ 12.5% FASTER SHORTCUT (Saves 0.5 km & fuel!)
+              </div>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
+              In PathPilot, horizontal moves cost <strong>1 km</strong>, vertical moves cost <strong>2 km</strong>, and diagonals cost <strong>2.5 km</strong>. Finding optimal shortcuts requires sharp geometry and routing intuition!
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature Highlights Matrix -->
+    <div class="features-section">
+      <h2 class="section-title">Engineered for Route Masters</h2>
+      <p class="section-sub">Experience deep routing strategy inspired by operations research and real-world logistics.</p>
+
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon-badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">📐</div>
+          <h3>Asymmetric Road Physics</h3>
+          <p>Moving north/south costs twice as much as moving east/west. Diagonals offer tactical cuts through alleyways that reward smart geometric foresight.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon-badge" style="background: rgba(251, 191, 36, 0.15); color: #fbbf24;">🧠</div>
+          <h3>Held-Karp Optimal Solver</h3>
+          <p>Every level is precomputed with bitmask Traveling Salesperson DP and Pareto state-space search. Star ratings measure your exact efficiency vs the mathematical optimum.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon-badge" style="background: rgba(52, 211, 153, 0.15); color: #34d399;">⛽</div>
+          <h3>Fuel & Rush-Hour Deadlines</h3>
+          <p>Navigate tight fuel tanks requiring pit stops at gas stations, race against impatient VIP countdown rings, and dodge traffic congestion zones.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon-badge" style="background: rgba(192, 132, 252, 0.15); color: #c084fc;">🛠️</div>
+          <h3>Garage & Custom Courier</h3>
+          <p>Earn cash on successful deliveries. Buy auxiliary fuel tanks, satellite hint tokens, and priority passes, and personalize your courier vehicle skin.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Customer Reviews / Testimonials -->
+    <div class="reviews-section">
+      <h2 class="section-title">Dispatcher & Client Reviews</h2>
+      <p class="section-sub">What city businesses are saying about PathPilot couriers.</p>
+      <div class="reviews-grid">
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p>"Our croissants arrived piping hot! The courier took two diagonal cuts across 3rd Avenue and saved 1.5 km of travel time."</p>
+          <div class="review-author">— Chef Pierre, Downtown Bakery</div>
+        </div>
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p>"The state-space solver ghost replay is mesmerizing. I finally saw why my route was 10% off optimal and fixed my diagonal angles!"</p>
+          <div class="review-author">— Sarah M., Competitive Speedrunner</div>
+        </div>
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p>"Managing fuel stops on Level 9 while racing impatient pizza orders is pure tactical adrenaline. 10/10 puzzle design."</p>
+          <div class="review-author">— Marcus K., Route Logistics Manager</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       VIEW 2: DISPATCH DASHBOARD (#view-dashboard)
+       ========================================================================= -->
+  <div class="view-screen" id="view-dashboard">
+    <div class="dashboard-container">
+
+      <!-- Pilot ID Card & Profile Header -->
+      <div class="pilot-profile-banner">
+        <div class="pilot-identity">
+          <div class="pilot-avatar-frame" id="dash-avatar-icon">🚚</div>
+          <div class="pilot-name-group">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="text" id="dash-callsign-input" class="pilot-callsign-input" value="Pilot Swift" maxlength="14" title="Click to rename driver">
+              <span style="font-size: 0.8rem; color: var(--text-muted);">✎</span>
+            </div>
+            <div class="pilot-rank-title" id="dash-rank-title">Rank: Rookie Courier (Lvl 1)</div>
+            <div class="skin-selector">
+              <span style="font-size: 0.72rem; color: var(--text-muted);">Van Livery:</span>
+              <div class="skin-chip skin-yellow selected" data-skin="yellow" title="Classic Yellow Express"></div>
+              <div class="skin-chip skin-cyber" data-skin="cyber" title="Cyber Neon Cyan"></div>
+              <div class="skin-chip skin-turbo" data-skin="turbo" title="Turbo Red"></div>
+              <div class="skin-chip skin-stealth" data-skin="stealth" title="Stealth Night"></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <button class="btn-action btn-primary" id="dash-btn-continue">
+            <span>▶</span> Continue Career (Lvl <span id="dash-next-lvl-num">1</span>)
+          </button>
+          <button class="btn-action" id="dash-btn-quick-daily">
+            <span>📅</span> Launch Daily
+          </button>
+        </div>
+      </div>
+
+      <!-- Career Statistics Metrics Row -->
+      <div class="dashboard-stats-row">
+        <div class="dash-stat-card">
+          <div class="dash-stat-icon">⭐</div>
+          <div class="dash-stat-info">
+            <span class="dash-stat-label">Total Stars</span>
+            <span class="dash-stat-val" id="dash-stat-stars" style="color: #fbbf24;">0 / 45</span>
+          </div>
+        </div>
+        <div class="dash-stat-card">
+          <div class="dash-stat-icon">💵</div>
+          <div class="dash-stat-info">
+            <span class="dash-stat-label">Career Bank</span>
+            <span class="dash-stat-val" id="dash-stat-cash" style="color: var(--accent-emerald);">$0</span>
+          </div>
+        </div>
+        <div class="dash-stat-card">
+          <div class="dash-stat-icon">📦</div>
+          <div class="dash-stat-info">
+            <span class="dash-stat-label">Parcels Delivered</span>
+            <span class="dash-stat-val" id="dash-stat-drops">0</span>
+          </div>
+        </div>
+        <div class="dash-stat-card">
+          <div class="dash-stat-icon">🛣️</div>
+          <div class="dash-stat-info">
+            <span class="dash-stat-label">Distance Driven</span>
+            <span class="dash-stat-val" id="dash-stat-dist">0.0 km</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Featured Daily Dispatch Card -->
+      <div class="daily-banner-card">
+        <div class="daily-banner-info">
+          <div class="daily-banner-title">
+            <span>📅</span> Daily Dispatch Challenge: <span id="dash-daily-date" style="font-family: var(--font-mono); color: #ffffff;">2026-10-06</span>
+          </div>
+          <div style="font-size: 0.85rem; color: var(--text-muted);" id="dash-daily-status">
+            Solvability Verified: 100% Guaranteed. A unique procedural city map refreshed daily.
+          </div>
+        </div>
+        <button class="btn-action btn-primary" id="dash-daily-play-btn">
+          Play Today's Seed 🚀
+        </button>
+      </div>
+
+      <!-- District Level Matrix (All 15 Handcrafted Levels across 5 Zones) -->
+      <div class="districts-container">
+        <h2 style="font-size: 1.4rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <span>🗺️</span> City Dispatch Chapters (15 Handcrafted Routes)
+        </h2>
+
+        <div id="district-zones-wrapper" style="display: flex; flex-direction: column; gap: 16px;">
+          <!-- Dynamically populated by Level Matrix Renderer -->
+        </div>
+      </div>
+
+      <!-- Career Achievements Showcase -->
+      <div style="margin-top: 10px;">
+        <h3 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+          <span>🏆</span> Driver Career Accolades
+        </h3>
+        <div class="achievements-grid" id="achievements-grid">
+          <!-- Populated by script -->
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       VIEW 3: ACTIVE GAME ARENA (#view-game)
+       ========================================================================= -->
+  <div class="view-screen" id="view-game">
+    <div class="game-arena-wrapper">
+
+      <!-- Top Action Ribbon -->
+      <div class="arena-top-ribbon">
+        <button class="btn-back-hub" id="btn-back-to-hub">
+          <span>◀</span> Exit to Dispatch Hub
+        </button>
+
+        <div class="level-meta-group">
+          <span class="game-level-tag" id="hud-level-num">Level 1</span>
+          <span style="font-weight: 700; font-size: 0.95rem;" id="hud-level-name">First Dispatch</span>
+        </div>
+
+        <div class="hud-buttons">
+          <button class="btn-action" id="btn-undo" title="Undo Last Move (Key: U or Ctrl+Z)" disabled>
+            <span>⎌</span> Undo
+          </button>
+          <button class="btn-action" id="btn-restart" title="Restart Level (Key: R)">
+            <span>↺</span> Restart
+          </button>
+          <button class="btn-action btn-hint" id="btn-hint" title="Optimal Route Hint (Key: H)">
+            <span>💡</span> Hint
+          </button>
+        </div>
+      </div>
+
+      <!-- HQ Dispatch Radio Live Terminal -->
+      <div class="radio-terminal">
+        <div class="radio-indicator">
+          <div class="radio-blink"></div>
+          <span>HQ Radio</span>
+        </div>
+        <div class="radio-ticker" id="radio-ticker-text">
+          HQ Dispatch: All systems operational. Deliver parcels to all customers and return to depot.
+        </div>
+      </div>
+
+      <!-- Live Game HUD Bar -->
+      <div class="hud-bar">
+        <div class="hud-metrics">
+          <div class="hud-card">
+            <div>
+              <span class="hud-label">Distance</span>
+              <span class="hud-val" id="hud-dist">0.0 km</span>
+            </div>
+          </div>
+
+          <div class="hud-card" title="Optimal Distance computed by solver">
+            <div>
+              <span class="hud-label">Optimal Goal</span>
+              <span class="hud-val" id="hud-optimal" style="color: var(--accent-cyan);">-- km</span>
+            </div>
+          </div>
+
+          <div class="hud-card">
+            <div>
+              <span class="hud-label">Parcels</span>
+              <span class="hud-val" id="hud-parcels">0 / 0</span>
+            </div>
+          </div>
+
+          <div class="hud-card" id="hud-fuel-card" style="display: none;">
+            <div>
+              <span class="hud-label">Fuel Tank</span>
+              <span class="hud-val" id="hud-fuel-val">15.0 km</span>
+              <div class="hud-fuel-gauge">
+                <div class="hud-fuel-fill" id="hud-fuel-bar"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="hud-card">
+            <div>
+              <span class="hud-label">Cash</span>
+              <span class="hud-val" id="hud-cash" style="color: var(--accent-emerald);">$0</span>
+            </div>
+          </div>
+
+          <div class="hud-card">
+            <div>
+              <span class="hud-label">Score</span>
+              <span class="hud-val" id="hud-score" style="color: var(--accent-amber);">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game Canvas Viewport -->
+      <div class="canvas-wrapper" id="canvas-container">
+        <canvas id="game-canvas"></canvas>
+
+        <!-- Road Cost Legend -->
+        <div class="legend-bar">
+          <div class="legend-item"><div class="legend-dot horiz"></div> 1 km (Horiz)</div>
+          <div class="legend-item"><div class="legend-dot vert"></div> 2 km (Vert)</div>
+          <div class="legend-item"><div class="legend-dot diag"></div> 2.5 km (Diag)</div>
+        </div>
+
+        <!-- Floating Toast Banner -->
+        <div class="game-banner hidden" id="game-banner">
+          <span id="banner-text">Welcome to PathPilot!</span>
+        </div>
+
+        <!-- Mobile Touch Virtual D-Pad -->
+        <div class="mobile-controls" id="mobile-dpad">
+          <div class="dpad-grid">
+            <button class="dpad-btn" data-dx="-1" data-dy="-1">↖</button>
+            <button class="dpad-btn" data-dx="0" data-dy="-1">↑</button>
+            <button class="dpad-btn" data-dx="1" data-dy="-1">↗</button>
+            <button class="dpad-btn" data-dx="-1" data-dy="0">←</button>
+            <button class="dpad-btn center" id="dpad-center" title="Undo">⎌</button>
+            <button class="dpad-btn" data-dx="1" data-dy="0">→</button>
+            <button class="dpad-btn" data-dx="-1" data-dy="1">↙</button>
+            <button class="dpad-btn" data-dx="0" data-dy="1">↓</button>
+            <button class="dpad-btn" data-dx="1" data-dy="1">↘</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MODALS & DIALOGS
+       ========================================================================= -->
+
+  <!-- Level Intro Briefing Modal -->
+  <div class="modal-backdrop" id="modal-intro">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="modal-title" id="intro-title">Mission Briefing</h2>
+        <button class="modal-close" data-close="modal-intro">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="intro-desc" style="margin-bottom: 12px; font-weight: 500;"></p>
+        <div id="intro-details" style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 8px; margin-bottom: 12px;"></div>
+        <div id="intro-tutorial" style="display: none; background: rgba(56, 189, 248, 0.15); border-left: 4px solid var(--accent-cyan); padding: 10px; border-radius: 4px; color: var(--text-main);"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-action btn-primary" id="btn-start-level">Start Delivery 🚚</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Level Completed Victory Modal -->
+  <div class="modal-backdrop" id="modal-complete">
+    <div class="modal-box" style="text-align: center;">
+      <h2 class="modal-title" style="color: var(--accent-emerald);">Delivery Complete!</h2>
+      <p style="color: var(--text-muted); font-size: 0.9rem;" id="complete-subtitle">All parcels delivered and safely returned to depot.</p>
+
+      <div class="stars-container">
+        <span class="star-icon" id="star-1">★</span>
+        <span class="star-icon" id="star-2">★</span>
+        <span class="star-icon" id="star-3">★</span>
+      </div>
+      <div id="complete-rating-label" style="font-weight: 700; font-size: 1.15rem; color: #fbbf24; margin-bottom: 14px;"></div>
+
+      <div style="background: rgba(0,0,0,0.25); border-radius: 12px; padding: 14px; text-align: left; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span>Your Distance:</span>
+          <strong id="complete-player-dist" style="font-family: var(--font-mono);">0.0 km</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span>Optimal Route Distance:</span>
+          <strong id="complete-optimal-dist" style="font-family: var(--font-mono); color: var(--accent-cyan);">0.0 km</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span>Efficiency Ratio:</span>
+          <strong id="complete-efficiency" style="color: var(--accent-emerald);">100%</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span>Delivery Payouts:</span>
+          <strong id="complete-cash" style="color: var(--accent-emerald);">+$0</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>Total Score Earned:</span>
+          <strong id="complete-score" style="color: var(--accent-amber);">0 pts</strong>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="justify-content: center; gap: 8px; flex-wrap: wrap;">
+        <button class="btn-action" id="btn-show-optimal">👁️ Show Optimal Route</button>
+        <button class="btn-action" id="btn-replay">↺ Replay</button>
+        <button class="btn-action" id="btn-complete-hub">📟 Hub</button>
+        <button class="btn-action btn-primary" id="btn-next-level">Next Level ➔</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Level Failed Modal -->
+  <div class="modal-backdrop" id="modal-failed">
+    <div class="modal-box" style="text-align: center;">
+      <h2 class="modal-title" style="color: var(--accent-rose);">Delivery Failed!</h2>
+      <p id="failed-reason" style="margin: 14px 0; font-size: 1rem; color: var(--text-main);"></p>
+      <div style="background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.3); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 0.85rem;">
+        Tip: Inspect diagonal cuts (2.5 km) vs orthogonal paths (1 km + 2 km = 3 km), and schedule fuel pit stops or tight deadlines first!
+      </div>
+      <div class="modal-footer" style="justify-content: center; gap: 10px;">
+        <button class="btn-action" id="btn-fail-hub">📟 Dispatch Hub</button>
+        <button class="btn-action btn-primary" id="btn-retry">↺ Retry Level</button>
+        <button class="btn-action" id="btn-failed-tow" style="display: none;">🚨 Use Emergency Tow</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shop / Garage Modal -->
+  <div class="modal-backdrop" id="modal-shop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="modal-title">Courier Garage & Gear Upgrades</h2>
+        <button class="modal-close" data-close="modal-shop">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.25); padding: 10px 14px; border-radius: 8px; margin-bottom: 12px;">
+          <span>Courier Bank Balance:</span>
+          <strong id="shop-player-cash" style="color: var(--accent-emerald); font-size: 1.25rem;">$0</strong>
+        </div>
+        <div class="shop-items" id="shop-items-container">
+          <!-- Populated by script -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaderboard Modal -->
+  <div class="modal-backdrop" id="modal-leaderboard">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="modal-title">Courier Hall of Fame</h2>
+        <button class="modal-close" data-close="modal-leaderboard">&times;</button>
+      </div>
+      <div class="modal-body">
+        <table class="leaderboard-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Courier</th>
+              <th>Score</th>
+              <th>Stars</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help & Rules Manual Modal -->
+  <div class="modal-backdrop" id="modal-help">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="modal-title">PathPilot Driver's Manual</h2>
+        <button class="modal-close" data-close="modal-help">&times;</button>
+      </div>
+      <div class="modal-body" style="font-size: 0.88rem; line-height: 1.6;">
+        <h3 style="color: var(--text-main); margin-bottom: 6px;">🎯 Objective</h3>
+        <p>Drive your delivery van from the <strong>Depot (Start)</strong>, deliver parcels to <strong>EVERY customer</strong>, and return to the depot using the shortest total distance possible!</p>
+
+        <h3 style="color: var(--text-main); margin: 12px 0 6px 0;">🛣️ Movement & Asymmetric Costs</h3>
+        <ul style="padding-left: 20px; margin-bottom: 10px;">
+          <li><strong style="color: var(--road-horiz);">Horizontal Move</strong>: <strong>1.0 km</strong></li>
+          <li><strong style="color: var(--road-vert);">Vertical Move</strong>: <strong>2.0 km</strong></li>
+          <li><strong style="color: var(--road-diag);">Diagonal Move</strong>: <strong>2.5 km</strong> (0.5 km faster than 1 horiz + 1 vert = 3.0 km!)</li>
+          <li><strong style="color: #ef4444;">Traffic Zones</strong>: Multiply road costs by 1.5x or 2.0x!</li>
+          <li><strong style="color: #f59e0b;">One-Way Streets</strong>: Permitted only in the direction of the chevrons.</li>
+        </ul>
+
+        <h3 style="color: var(--text-main); margin: 12px 0 6px 0;">🎮 Controls</h3>
+        <ul style="padding-left: 20px; margin-bottom: 10px;">
+          <li><strong>Mouse / Touch</strong>: Click or tap any adjacent highlighted intersection node.</li>
+          <li><strong>Keyboard</strong>: Arrow keys or <code>W</code>, <code>A</code>, <code>S</code>, <code>D</code> for cardinal moves.</li>
+          <li><strong>Diagonals</strong>: <code>Q</code> (NW), <code>E</code> (NE), <code>Z</code> (SW), <code>C</code> (SE) or Numpad 7/9/1/3.</li>
+          <li><strong>Undo</strong>: <code>U</code> or <code>Ctrl+Z</code>.</li>
+          <li><strong>Restart</strong>: <code>R</code>.</li>
+          <li><strong>Hint</strong>: <code>H</code> (shows next optimal move from current position).</li>
+        </ul>
+
+        <h3 style="color: var(--text-main); margin: 12px 0 6px 0;">⭐ Star Rating System</h3>
+        <ul style="padding-left: 20px;">
+          <li>⭐⭐⭐ <strong>3 Stars</strong>: Within 0% of Optimal (exact shortest route found by the solver!).</li>
+          <li>⭐⭐ <strong>2 Stars</strong>: Within 10% of Optimal distance.</li>
+          <li>⭐ <strong>1 Star</strong>: Delivered all parcels and returned to depot.</li>
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-action btn-primary" data-close="modal-help">Got It!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT ENGINE -->
+  <script>
+    /**
+     * =============================================================================
+     * PATHPILOT - Shortest-Route Parcel Delivery Puzzle Game
+     * =============================================================================
+     *
+     * 1. HOW TO ADD A NEW LEVEL:
+     *    Levels are defined as clean JSON objects in the `LEVELS` array below.
+     *    Each level supports the following schema:
+     *    {
+     *      id: number,                    // Unique level index
+     *      title: string,                 // Display title
+     *      subtitle: string,              // Subtitle / mission flavor
+     *      width: number,                 // Grid width (columns, e.g. 5 to 8)
+     *      height: number,                // Grid height (rows, e.g. 5 to 8)
+     *      depot: [x, y],                 // Starting / ending warehouse coordinate
+     *      customers: [                   // Array of customer delivery points
+     *        {
+     *          id: number,
+     *          pos: [x, y],
+     *          name: string,              // e.g. "Bakery", "Art Gallery"
+     *          payout: number,            // Cash earned upon delivery
+     *          patience?: number,         // Optional: max km before customer expires
+     *          mandatory?: boolean        // Optional: false for bonus VIP customers
+     *        }
+     *      ],
+     *      fuelStations?: [[x, y]],       // Optional: fuel pump coordinates
+     *      fuel?: number,                 // Optional: max fuel tank capacity (Infinity if omitted)
+     *      blocked?: [[x1,y1,x2,y2]],     // Optional: impassable road segments
+     *      oneWay?: [[fromX,fromY,toX,toY]], // Optional: directed one-way streets
+     *      traffic?: { "x,y": multiplier }, // Optional: traffic cost multiplier (e.g. 1.5)
+     *      tutorial?: string              // Optional: educational tip shown in intro
+     *    }
+     *
+     * 2. HOW THE OPTIMAL SOLVER WORKS:
+     *    - All-Pairs Shortest Paths (APSP):
+     *      Computed via Dijkstra on the directed road graph using the asymmetric cost rules
+     *      (Horiz = 1.0 km, Vert = 2.0 km, Diag = 2.5 km, modulated by traffic multipliers).
+     *    - TSP & Routing Optimization:
+     *      Bitmask Held-Karp dynamic programming finds the global minimum tour.
+     *    - State-Space Search for Fuel & Timers:
+     *      Executes state-space Dijkstra search over state tuple (node, visitedMask, fuel, cost)
+     *      with Pareto-dominance pruning rule (cost <= prev.cost && fuel >= prev.fuel),
+     *      finding the exact optimal feasible tour in < 15ms.
+     * =============================================================================
+     */
+
+    // --- AUDIO SYNTHESIZER (Web Audio API) ---
+    class AudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = localStorage.getItem('pathpilot_muted') === 'true';
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) {
+            this.ctx = new AudioContextClass();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      toggleMute() {
+        this.muted = !this.muted;
+        localStorage.setItem('pathpilot_muted', this.muted);
+        return this.muted;
+      }
+
+      playTone(freq, type, duration, gainVal = 0.15, pitchBend = 0) {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          const now = this.ctx.currentTime;
+
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, now);
+          if (pitchBend !== 0) {
+            osc.frequency.linearRampToValueAtTime(freq + pitchBend, now + duration);
+          }
+
+          gain.gain.setValueAtTime(gainVal, now);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + duration);
+        } catch (e) {}
+      }
+
+      playDrive() {
+        this.playTone(180, 'triangle', 0.14, 0.08, 40);
+      }
+
+      playDeliver() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        notes.forEach((freq, idx) => {
+          setTimeout(() => {
+            this.playTone(freq, 'sine', 0.28, 0.12);
+          }, idx * 60);
+        });
+      }
+
+      playRefuel() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        const notes = [300, 450, 600, 750];
+        notes.forEach((freq, idx) => {
+          setTimeout(() => {
+            this.playTone(freq, 'sine', 0.2, 0.1);
+          }, idx * 70);
+        });
+      }
+
+      playLowFuelAlarm() {
+        this.playTone(880, 'square', 0.12, 0.08);
+        setTimeout(() => this.playTone(700, 'square', 0.14, 0.08), 120);
+      }
+
+      playStar(index) {
+        const freqs = [523.25, 659.25, 783.99];
+        this.playTone(freqs[index] || 800, 'triangle', 0.35, 0.15);
+      }
+
+      playWin() {
+        if (this.muted) return;
+        const melody = [
+          { f: 523.25, d: 0.12 },
+          { f: 659.25, d: 0.12 },
+          { f: 783.99, d: 0.14 },
+          { f: 1046.50, d: 0.4 }
+        ];
+        melody.forEach((note, i) => {
+          setTimeout(() => {
+            this.playTone(note.f, 'triangle', note.d, 0.15);
+          }, i * 140);
+        });
+      }
+
+      playFail() {
+        if (this.muted) return;
+        const tones = [350, 310, 270, 220];
+        tones.forEach((freq, i) => {
+          setTimeout(() => {
+            this.playTone(freq, 'sawtooth', 0.22, 0.1);
+          }, i * 100);
+        });
+      }
+
+      playClick() {
+        this.playTone(400, 'sine', 0.04, 0.05);
+      }
+
+      playRadioSquawk() {
+        this.playTone(600, 'square', 0.04, 0.03, 100);
+        setTimeout(() => this.playTone(800, 'sine', 0.06, 0.03), 40);
+      }
+    }
+
+    // --- GRAPH & PATHFINDING MODULE ---
+    class Graph {
+      constructor(width, height) {
+        this.width = width;
+        this.height = height;
+        this.adj = new Map();
+      }
+
+      nodeId(x, y) {
+        return y * this.width + x;
+      }
+
+      coords(id) {
+        return { x: id % this.width, y: Math.floor(id / this.width) };
+      }
+
+      buildDefaultEdges() {
+        for (let y = 0; y < this.height; y++) {
+          for (let x = 0; x < this.width; x++) {
+            const u = this.nodeId(x, y);
+            const edges = [];
+            for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) continue;
+                const nx = x + dx;
+                const ny = y + dy;
+                if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+                  const v = this.nodeId(nx, ny);
+                  let baseCost = 1.0;
+                  let type = 'h';
+                  if (dx !== 0 && dy === 0) {
+                    baseCost = 1.0;
+                    type = 'h';
+                  } else if (dx === 0 && dy !== 0) {
+                    baseCost = 2.0;
+                    type = 'v';
+                  } else {
+                    baseCost = 2.5;
+                    type = 'd';
+                  }
+                  edges.push({ to: v, cost: baseCost, baseCost, type, traffic: 1.0 });
+                }
+              }
+            }
+            this.adj.set(u, edges);
+          }
+        }
+      }
+
+      applyModifications(blocked = [], oneWay = [], traffic = {}) {
+        const blockedSet = new Set();
+        for (const [x1, y1, x2, y2] of blocked) {
+          const u = this.nodeId(x1, y1);
+          const v = this.nodeId(x2, y2);
+          blockedSet.add(`${u}-${v}`);
+          blockedSet.add(`${v}-${u}`);
+        }
+
+        const disallowedSet = new Set();
+        for (const [x1, y1, x2, y2] of oneWay) {
+          const u = this.nodeId(x1, y1);
+          const v = this.nodeId(x2, y2);
+          disallowedSet.add(`${v}->${u}`);
+        }
+
+        const trafficMap = new Map();
+        for (const [k, mult] of Object.entries(traffic)) {
+          const [x, y] = k.split(',').map(Number);
+          trafficMap.set(this.nodeId(x, y), mult);
+        }
+
+        for (let u = 0; u < this.width * this.height; u++) {
+          let edges = this.adj.get(u) || [];
+          edges = edges.filter(e => {
+            const v = e.to;
+            if (blockedSet.has(`${u}-${v}`)) return false;
+            if (disallowedSet.has(`${u}->${v}`)) return false;
+            return true;
+          });
+          for (const e of edges) {
+            const mult = trafficMap.get(e.to) || 1.0;
+            e.traffic = mult;
+            e.cost = e.baseCost * mult;
+          }
+          this.adj.set(u, edges);
+        }
+      }
+
+      dijkstra(src) {
+        const dist = new Map();
+        const prev = new Map();
+        const pq = [{ node: src, cost: 0 }];
+        dist.set(src, 0);
+
+        while (pq.length > 0) {
+          pq.sort((a, b) => a.cost - b.cost);
+          const { node: u, cost: d } = pq.shift();
+          if (d > dist.get(u)) continue;
+
+          const edges = this.adj.get(u) || [];
+          for (const edge of edges) {
+            const v = edge.to;
+            const newCost = d + edge.cost;
+            if (!dist.has(v) || newCost < dist.get(v)) {
+              dist.set(v, newCost);
+              prev.set(v, u);
+              pq.push({ node: v, cost: newCost });
+            }
+          }
+        }
+        return { dist, prev };
+      }
+
+      getPath(prev, src, dst) {
+        const path = [];
+        let curr = dst;
+        while (curr !== undefined) {
+          path.push(curr);
+          if (curr === src) break;
+          curr = prev.get(curr);
+        }
+        return path.reverse();
+      }
+    }
+
+    // --- PARETO OPTIMAL STATE-SPACE SOLVER ---
+    class StateSpaceSolver {
+      constructor(graph, depotNode, customers, fuelStations = [], maxFuel = Infinity) {
+        this.graph = graph;
+        this.depot = depotNode;
+        this.customers = customers;
+        this.fuelStations = fuelStations;
+        this.maxFuel = maxFuel;
+        this.numCust = customers.length;
+        this.mandatoryMask = 0;
+        for (let i = 0; i < this.numCust; i++) {
+          if (customers[i].mandatory !== false) {
+            this.mandatoryMask |= (1 << i);
+          }
+        }
+      }
+
+      solve(startNode = this.depot, startMask = 0, startFuel = this.maxFuel, startCost = 0) {
+        const pareto = new Map();
+
+        function isDominated(node, mask, cost, fuel) {
+          const key = (node << 10) | mask;
+          const list = pareto.get(key);
+          if (!list) return false;
+          for (let i = 0; i < list.length; i++) {
+            const p = list[i];
+            if (p.cost <= cost + 1e-6 && p.fuel >= fuel - 1e-6) {
+              return true;
+            }
+          }
+          return false;
+        }
+
+        function addPareto(node, mask, cost, fuel) {
+          const key = (node << 10) | mask;
+          let list = pareto.get(key);
+          if (!list) {
+            list = [];
+            pareto.set(key, list);
+          }
+          const filtered = list.filter(p => !(cost <= p.cost + 1e-6 && fuel >= p.fuel - 1e-6));
+          filtered.push({ cost, fuel });
+          pareto.set(key, filtered);
+        }
+
+        class MinHeap {
+          constructor() { this.data = []; }
+          push(val) {
+            this.data.push(val);
+            this.up(this.data.length - 1);
+          }
+          pop() {
+            if (this.data.length === 0) return null;
+            const top = this.data[0];
+            const bottom = this.data.pop();
+            if (this.data.length > 0) {
+              this.data[0] = bottom;
+              this.down(0);
+            }
+            return top;
+          }
+          up(i) {
+            while (i > 0) {
+              const p = (i - 1) >> 1;
+              if (this.data[i].cost < this.data[p].cost) {
+                const tmp = this.data[i]; this.data[i] = this.data[p]; this.data[p] = tmp;
+                i = p;
+              } else break;
+            }
+          }
+          down(i) {
+            const len = this.data.length;
+            while ((i << 1) + 1 < len) {
+              let left = (i << 1) + 1;
+              let right = left + 1;
+              let best = left;
+              if (right < len && this.data[right].cost < this.data[left].cost) best = right;
+              if (this.data[best].cost < this.data[i].cost) {
+                const tmp = this.data[i]; this.data[i] = this.data[best]; this.data[best] = tmp;
+                i = best;
+              } else break;
+            }
+          }
+          size() { return this.data.length; }
+        }
+
+        const pq = new MinHeap();
+        pq.push({
+          node: startNode,
+          mask: startMask,
+          fuel: startFuel,
+          cost: startCost,
+          path: [startNode]
+        });
+        addPareto(startNode, startMask, startCost, startFuel);
+
+        const fuelSet = new Set(this.fuelStations);
+        const customerMap = new Map();
+        this.customers.forEach((c, idx) => {
+          customerMap.set(c.node, { ...c, bit: 1 << idx });
+        });
+
+        let bestResult = null;
+        let iters = 0;
+        const maxIters = 60000;
+
+        while (pq.size() > 0 && iters < maxIters) {
+          iters++;
+          const curr = pq.pop();
+
+          if (curr.node === this.depot && (curr.mask & this.mandatoryMask) === this.mandatoryMask && curr.cost > startCost) {
+            bestResult = curr;
+            break;
+          }
+
+          const edges = this.graph.adj.get(curr.node) || [];
+          for (let i = 0; i < edges.length; i++) {
+            const edge = edges[i];
+            const nextNode = edge.to;
+            const edgeCost = edge.cost;
+
+            if (curr.fuel < edgeCost - 1e-6) continue;
+
+            let nextFuel = curr.fuel - edgeCost;
+            const nextCost = curr.cost + edgeCost;
+
+            if (fuelSet.has(nextNode)) {
+              nextFuel = this.maxFuel;
+            }
+
+            let nextMask = curr.mask;
+            const cust = customerMap.get(nextNode);
+            if (cust && !(curr.mask & cust.bit)) {
+              if (cust.patience !== undefined && nextCost > cust.patience + 1e-6) {
+                if (cust.mandatory !== false) continue;
+              } else {
+                nextMask = curr.mask | cust.bit;
+              }
+            }
+
+            if (isDominated(nextNode, nextMask, nextCost, nextFuel)) continue;
+
+            addPareto(nextNode, nextMask, nextCost, nextFuel);
+            pq.push({
+              node: nextNode,
+              mask: nextMask,
+              fuel: nextFuel,
+              cost: nextCost,
+              path: [...curr.path, nextNode]
+            });
+          }
+        }
+
+        return { bestResult, iters };
+      }
+    }
+
+    // --- 15 PREDEFINED LEVELS DATA ---
+    const LEVELS = [
+      // Zone 1: Suburbia Heights (Levels 1-3)
+      {
+        id: 1,
+        district: "District 1: Suburbia Heights",
+        title: "First Dispatch",
+        subtitle: "The Basics of Road Costs",
+        width: 5,
+        height: 5,
+        depot: [0, 0],
+        customers: [
+          { id: 1, pos: [3, 0], name: "Bakery", payout: 25 },
+          { id: 2, pos: [0, 3], name: "Bookstore", payout: 25 }
+        ],
+        tutorial: "Welcome to PathPilot! Horizontal roads cost 1 km, Vertical roads cost 2 km. Deliver to all shops and return to Depot!"
+      },
+      {
+        id: 2,
+        district: "District 1: Suburbia Heights",
+        title: "Diagonal Drift",
+        subtitle: "Geometry & Shortcuts",
+        width: 5,
+        height: 5,
+        depot: [0, 0],
+        customers: [
+          { id: 1, pos: [2, 2], name: "Florist", payout: 30 },
+          { id: 2, pos: [4, 4], name: "Tech Lab", payout: 35 }
+        ],
+        tutorial: "Diagonal roads cost 2.5 km! Moving 1 horiz + 1 vert costs 3 km, but 1 diagonal costs 2.5 km (saving 0.5 km)!"
+      },
+      {
+        id: 3,
+        district: "District 1: Suburbia Heights",
+        title: "Triangle Circuit",
+        subtitle: "Multi-Stop Routing",
+        width: 5,
+        height: 5,
+        depot: [2, 0],
+        customers: [
+          { id: 1, pos: [0, 3], name: "Pharmacy", payout: 30 },
+          { id: 2, pos: [4, 3], name: "Coffee Roasters", payout: 30 },
+          { id: 3, pos: [2, 4], name: "Art Studio", payout: 35 }
+        ],
+        tutorial: "Plan your sequence wisely! Visiting customers in the wrong order can add several kilometers to your return route."
+      },
+
+      // Zone 2: Downtown Detours (Levels 4-6)
+      {
+        id: 4,
+        district: "District 2: Downtown Detours",
+        title: "Roadwork Ahead",
+        subtitle: "Detours & Construction",
+        width: 6,
+        height: 6,
+        depot: [0, 0],
+        blocked: [
+          [1, 0, 2, 0], [1, 1, 2, 1], [3, 2, 3, 3], [4, 1, 5, 1], [0, 3, 1, 3]
+        ],
+        customers: [
+          { id: 1, pos: [4, 0], name: "Bistro", payout: 35 },
+          { id: 2, pos: [1, 2], name: "Optometrist", payout: 35 },
+          { id: 3, pos: [5, 4], name: "Hardware Store", payout: 40 },
+          { id: 4, pos: [2, 5], name: "Music Den", payout: 40 }
+        ]
+      },
+      {
+        id: 5,
+        district: "District 2: Downtown Detours",
+        title: "One-Way Boulevard",
+        subtitle: "Follow Traffic Flow",
+        width: 6,
+        height: 6,
+        depot: [0, 2],
+        oneWay: [
+          [0, 1, 1, 1], [1, 1, 2, 1], [2, 1, 3, 1], [3, 1, 4, 1], [4, 1, 5, 1],
+          [5, 4, 4, 4], [4, 4, 3, 4], [3, 4, 2, 4], [2, 4, 1, 4], [1, 4, 0, 4]
+        ],
+        customers: [
+          { id: 1, pos: [5, 1], name: "Cinema", payout: 40 },
+          { id: 2, pos: [3, 3], name: "Game Lounge", payout: 35 },
+          { id: 3, pos: [0, 4], name: "Record Store", payout: 40 },
+          { id: 4, pos: [4, 5], name: "Pet Clinic", payout: 45 }
+        ]
+      },
+      {
+        id: 6,
+        district: "District 2: Downtown Detours",
+        title: "Gridlock Maze",
+        subtitle: "Complex Street Network",
+        width: 7,
+        height: 7,
+        depot: [3, 3],
+        blocked: [
+          [2, 2, 3, 2], [3, 4, 4, 4], [1, 3, 1, 4], [5, 2, 5, 3], [2, 5, 3, 5]
+        ],
+        oneWay: [
+          [0, 2, 1, 2], [1, 2, 2, 2], [4, 2, 5, 2], [5, 2, 6, 2],
+          [6, 5, 5, 5], [5, 5, 4, 5], [3, 5, 2, 5], [2, 5, 1, 5]
+        ],
+        customers: [
+          { id: 1, pos: [1, 1], name: "Antique Shop", payout: 40 },
+          { id: 2, pos: [5, 1], name: "Flower Market", payout: 40 },
+          { id: 3, pos: [6, 4], name: "Harbor Deli", payout: 45 },
+          { id: 4, pos: [1, 6], name: "Pottery Hub", payout: 45 },
+          { id: 5, pos: [5, 6], name: "Observatory", payout: 50 }
+        ]
+      },
+
+      // Zone 3: Industrial Fuel Depots (Levels 7-9)
+      {
+        id: 7,
+        district: "District 3: Industrial Fuel Depots",
+        title: "Half Tank",
+        subtitle: "Fuel Management 101",
+        width: 6,
+        height: 6,
+        depot: [0, 0],
+        fuel: 15,
+        fuelStations: [[3, 2]],
+        customers: [
+          { id: 1, pos: [5, 0], name: "Plaza Hotel", payout: 40 },
+          { id: 2, pos: [5, 4], name: "Yacht Club", payout: 45 },
+          { id: 3, pos: [0, 5], name: "Metro Terminal", payout: 40 }
+        ],
+        tutorial: "Your fuel is limited! 1 km traveled consumes 1 unit of fuel. Visit the green Fuel Station (⛽) to refill your tank."
+      },
+      {
+        id: 8,
+        district: "District 3: Industrial Fuel Depots",
+        title: "Long Haul Route",
+        subtitle: "Two Pit Stops Required",
+        width: 7,
+        height: 7,
+        depot: [0, 3],
+        fuel: 14,
+        fuelStations: [[2, 1], [4, 5]],
+        customers: [
+          { id: 1, pos: [3, 0], name: "Airport Cargo", payout: 45 },
+          { id: 2, pos: [6, 2], name: "Suburban Mall", payout: 45 },
+          { id: 3, pos: [5, 6], name: "River Pier", payout: 50 },
+          { id: 4, pos: [1, 6], name: "Eco Park", payout: 45 }
+        ]
+      },
+      {
+        id: 9,
+        district: "District 3: Industrial Fuel Depots",
+        title: "Vapor Lock",
+        subtitle: "Extreme Range Calculation",
+        width: 7,
+        height: 7,
+        depot: [0, 0],
+        fuel: 13,
+        fuelStations: [[3, 3], [5, 1]],
+        blocked: [[2, 2, 2, 3], [3, 2, 4, 2], [1, 4, 2, 4]],
+        customers: [
+          { id: 1, pos: [6, 0], name: "Skyline Lounge", payout: 50 },
+          { id: 2, pos: [6, 5], name: "Golf Resort", payout: 50 },
+          { id: 3, pos: [2, 6], name: "Botanical Garden", payout: 50 },
+          { id: 4, pos: [0, 4], name: "Radio Tower", payout: 45 }
+        ]
+      },
+
+      // Zone 4: Rush Hour Express (Levels 10-12)
+      {
+        id: 10,
+        district: "District 4: Rush Hour Express",
+        title: "Rush Hour",
+        subtitle: "Impatient Deliveries",
+        width: 6,
+        height: 6,
+        depot: [0, 0],
+        customers: [
+          { id: 1, pos: [4, 1], name: "Hot Pizza", payout: 60, patience: 10 },
+          { id: 2, pos: [5, 4], name: "Ice Cream Cart", payout: 55, patience: 18 },
+          { id: 3, pos: [1, 5], name: "Espresso Bar", payout: 50, patience: 28 }
+        ],
+        tutorial: "Impatient customers have a distance countdown (km). Deliver before their timer expires, or the delivery fails!"
+      },
+      {
+        id: 11,
+        district: "District 4: Rush Hour Express",
+        title: "Priority Courier",
+        subtitle: "Tight Deadlines & High Stakes",
+        width: 7,
+        height: 7,
+        depot: [3, 0],
+        customers: [
+          { id: 1, pos: [1, 2], name: "VIP Executive", payout: 80, patience: 9 },
+          { id: 2, pos: [5, 2], name: "Lab Samples", payout: 75, patience: 18 },
+          { id: 3, pos: [6, 5], name: "Concert Tickets", payout: 60, patience: 28 },
+          { id: 4, pos: [0, 6], name: "News Anchor", payout: 55, patience: 36 }
+        ]
+      },
+      {
+        id: 12,
+        district: "District 4: Rush Hour Express",
+        title: "Tick-Tock Express",
+        subtitle: "Chain Reaction Timing",
+        width: 7,
+        height: 7,
+        depot: [0, 3],
+        blocked: [[2, 2, 3, 2], [4, 4, 5, 4]],
+        customers: [
+          { id: 1, pos: [2, 1], name: "Fresh Bagels", payout: 70, patience: 8 },
+          { id: 2, pos: [5, 1], name: "Medical Courier", payout: 85, patience: 17 },
+          { id: 3, pos: [6, 4], name: "Document Signer", payout: 65, patience: 25 },
+          { id: 4, pos: [3, 6], name: "Catering Chef", payout: 60, patience: 34 },
+          { id: 5, pos: [0, 5], name: "Midnight Cleaner", payout: 50, patience: 42 }
+        ]
+      },
+
+      // Zone 5: Megacity Nexus (Levels 13-15)
+      {
+        id: 13,
+        district: "District 5: Megacity Nexus",
+        title: "Highway Jam",
+        subtitle: "Traffic Zones & Limited Fuel",
+        width: 7,
+        height: 7,
+        depot: [0, 0],
+        fuel: 16,
+        fuelStations: [[3, 3]],
+        traffic: {
+          "2,2": 1.5, "2,3": 1.5, "3,2": 1.5, "4,2": 1.5, "4,3": 1.5
+        },
+        customers: [
+          { id: 1, pos: [5, 1], name: "Downtown Law Firm", payout: 70, patience: 18 },
+          { id: 2, pos: [6, 5], name: "Marina Club", payout: 65, patience: 30 },
+          { id: 3, pos: [1, 5], name: "Subway Station", payout: 60, patience: 40 },
+          { id: 4, pos: [4, 6], name: "Steel Works", payout: 55, patience: 48 }
+        ]
+      },
+      {
+        id: 14,
+        district: "District 5: Megacity Nexus",
+        title: "Express Dispatch",
+        subtitle: "Fuel, Deadlines & Bonus VIP",
+        width: 8,
+        height: 8,
+        depot: [0, 4],
+        fuel: 18,
+        fuelStations: [[3, 1], [4, 6]],
+        traffic: { "3,3": 1.5, "3,4": 1.5, "4,3": 1.5, "4,4": 1.5 },
+        customers: [
+          { id: 1, pos: [2, 0], name: "City Hall", payout: 75, patience: 16 },
+          { id: 2, pos: [6, 1], name: "Financier", payout: 80, patience: 26 },
+          { id: 3, pos: [7, 5], name: "Grand Resort", payout: 70, patience: 38 },
+          { id: 4, pos: [1, 7], name: "Old Mill", payout: 65, patience: 50 },
+          { id: 5, pos: [7, 7], name: "VIP Celebrity (Bonus)", payout: 150, patience: 42, mandatory: false }
+        ]
+      },
+      {
+        id: 15,
+        district: "District 5: Megacity Nexus",
+        title: "The Grand Master",
+        subtitle: "The Ultimate Delivery Challenge",
+        width: 8,
+        height: 8,
+        depot: [4, 4],
+        fuel: 20,
+        fuelStations: [[1, 2], [6, 5]],
+        blocked: [[2, 1, 3, 1], [5, 6, 6, 6], [1, 5, 2, 5]],
+        oneWay: [
+          [0, 3, 1, 3], [1, 3, 2, 3], [5, 4, 6, 4], [6, 4, 7, 4]
+        ],
+        traffic: { "3,4": 1.5, "4,3": 1.5, "4,5": 1.5, "5,4": 1.5 },
+        customers: [
+          { id: 1, pos: [1, 0], name: "Cathedral", payout: 80, patience: 18 },
+          { id: 2, pos: [7, 1], name: "Penthouse Suite", payout: 85, patience: 28 },
+          { id: 3, pos: [7, 7], name: "Harbor Freight", payout: 90, patience: 42 },
+          { id: 4, pos: [0, 7], name: "Lighthouse", payout: 75, patience: 52 },
+          { id: 5, pos: [0, 1], name: "Art Museum", payout: 70, patience: 62 }
+        ]
+      }
+    ];
+
+    // --- DAILY CHALLENGE PROCEDURAL GENERATOR ---
+    function mulberry32(a) {
+      return function() {
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      };
+    }
+
+    function getTodaySeedNumber() {
+      const now = new Date();
+      const str = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      return parseInt(str, 10);
+    }
+
+    function generateDailyLevel(seedNum) {
+      let seed = seedNum;
+      for (let attempt = 0; attempt < 25; attempt++) {
+        const rng = mulberry32(seed + attempt * 17);
+        const W = 6;
+        const H = 6;
+        const depot = [Math.floor(rng() * W), Math.floor(rng() * H)];
+        const numCust = 3 + Math.floor(rng() * 2);
+        const customers = [];
+        const occupied = new Set([`${depot[0]},${depot[1]}`]);
+        const names = ["Cafe", "Boutique", "Bakery", "Art Space", "Tea House", "Tech Hub"];
+
+        for (let i = 0; i < numCust; i++) {
+          let x, y, tries = 0;
+          do {
+            x = Math.floor(rng() * W);
+            y = Math.floor(rng() * H);
+            tries++;
+          } while (occupied.has(`${x},${y}`) && tries < 50);
+
+          occupied.add(`${x},${y}`);
+          customers.push({
+            id: i + 1,
+            pos: [x, y],
+            name: names[i % names.length],
+            payout: 40 + Math.floor(rng() * 30),
+            mandatory: true
+          });
+        }
+
+        let fx, fy;
+        do {
+          fx = Math.floor(rng() * W);
+          fy = Math.floor(rng() * H);
+        } while (occupied.has(`${fx},${fy}`));
+        const fuelStations = [[fx, fy]];
+
+        const blocked = [];
+        const numBlocked = 2 + Math.floor(rng() * 2);
+        for (let i = 0; i < numBlocked; i++) {
+          const x1 = Math.floor(rng() * (W - 1));
+          const y1 = Math.floor(rng() * H);
+          blocked.push([x1, y1, x1 + 1, y1]);
+        }
+
+        const fuel = 18;
+
+        const g = new Graph(W, H);
+        g.buildDefaultEdges();
+        g.applyModifications(blocked, [], {});
+
+        const depotNode = g.nodeId(depot[0], depot[1]);
+        const custNodes = customers.map(c => ({
+          ...c,
+          node: g.nodeId(c.pos[0], c.pos[1])
+        }));
+        const fNodes = fuelStations.map(p => g.nodeId(p[0], p[1]));
+
+        const solver = new StateSpaceSolver(g, depotNode, custNodes, fNodes, fuel);
+        const res = solver.solve();
+
+        if (res && res.bestResult) {
+          return {
+            id: 'daily',
+            district: "Special Assignment",
+            title: "Daily Dispatch",
+            subtitle: `Seed #${seedNum}`,
+            width: W,
+            height: H,
+            depot,
+            customers,
+            fuelStations,
+            fuel,
+            blocked
+          };
+        }
+      }
+      return LEVELS[0];
+    }
+
+    // --- SHOP & ECONOMY SYSTEM ---
+    class ShopSystem {
+      constructor() {
+        this.items = [
+          {
+            id: 'extra_tank',
+            name: 'Auxiliary Fuel Tank',
+            desc: '+4 km permanent fuel tank capacity on all fuel levels.',
+            cost: 60,
+            maxQty: 3
+          },
+          {
+            id: 'hint_pack',
+            name: 'Hint Token Pack (x2)',
+            desc: 'Adds 2 free optimal hints without score or cash penalty.',
+            cost: 40,
+            maxQty: 99
+          },
+          {
+            id: 'patience_pass',
+            name: 'Priority Courier Pass',
+            desc: '+6 km customer patience on all deadline countdowns.',
+            cost: 50,
+            maxQty: 2
+          },
+          {
+            id: 'emergency_tow',
+            name: 'Depot Emergency Tow',
+            desc: 'One-time instant emergency return to depot in a pinch.',
+            cost: 70,
+            maxQty: 5
+          }
+        ];
+      }
+
+      getInventory() {
+        const raw = localStorage.getItem('pathpilot_inventory');
+        return raw ? JSON.parse(raw) : {
+          extra_tank: 0,
+          hint_pack: 1,
+          patience_pass: 0,
+          emergency_tow: 0
+        };
+      }
+
+      saveInventory(inv) {
+        localStorage.setItem('pathpilot_inventory', JSON.stringify(inv));
+      }
+
+      buy(itemId, playerCash) {
+        const item = this.items.find(i => i.id === itemId);
+        if (!item || playerCash < item.cost) return { success: false, msg: "Insufficient cash!" };
+
+        const inv = this.getInventory();
+        const currentQty = inv[itemId] || 0;
+        if (currentQty >= item.maxQty) return { success: false, msg: "Max upgrades reached!" };
+
+        inv[itemId] = currentQty + (itemId === 'hint_pack' ? 2 : 1);
+        this.saveInventory(inv);
+        return { success: true, newCash: playerCash - item.cost, inv };
+      }
+    }
+
+    // --- CANVAS RENDERER ---
+    class Renderer {
+      constructor(canvas, container) {
+        this.canvas = canvas;
+        this.container = container;
+        this.ctx = canvas.getContext('2d');
+        this.dpr = window.devicePixelRatio || 1;
+        this.showRoadCosts = true;
+        this.particles = [];
+        this.floatingTexts = [];
+        this.padX = 64;
+        this.padY = 64;
+        this.carAngle = 0;
+        this.shakeTime = 0;
+        this.vehicleSkin = 'yellow';
+      }
+
+      resize() {
+        const rect = this.container.getBoundingClientRect();
+        if (rect.width === 0) return;
+        this.canvas.width = rect.width * this.dpr;
+        this.canvas.height = rect.height * this.dpr;
+        this.canvas.style.width = `${rect.width}px`;
+        this.canvas.style.height = `${rect.height}px`;
+      }
+
+      getGridMetrics(level) {
+        const w = this.canvas.width / this.dpr;
+        const h = this.canvas.height / this.dpr;
+        const availW = w - 2 * this.padX;
+        const availH = h - 2 * this.padY;
+        const cellW = availW / (level.width - 1);
+        const cellH = availH / (level.height - 1);
+        return { w, h, cellW, cellH, padX: this.padX, padY: this.padY };
+      }
+
+      nodeToScreen(id, level) {
+        const metrics = this.getGridMetrics(level);
+        const x = id % level.width;
+        const y = Math.floor(id / level.width);
+        return {
+          px: metrics.padX + x * metrics.cellW,
+          py: metrics.padY + y * metrics.cellH
+        };
+      }
+
+      screenToNode(px, py, level, threshold = 30) {
+        let bestNode = null;
+        let bestDist = Infinity;
+        for (let i = 0; i < level.width * level.height; i++) {
+          const pt = this.nodeToScreen(i, level);
+          const d = Math.hypot(px - pt.px, py - pt.py);
+          if (d < bestDist && d <= threshold) {
+            bestDist = d;
+            bestNode = i;
+          }
+        }
+        return bestNode;
+      }
+
+      addDeliveryParticles(x, y) {
+        const colors = ['#fbbf24', '#38bdf8', '#34d399', '#f43f5e', '#ffffff'];
+        for (let i = 0; i < 28; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 2 + Math.random() * 5.5;
+          this.particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: 3 + Math.random() * 4,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            life: 1.0,
+            decay: 0.02 + Math.random() * 0.02
+          });
+        }
+      }
+
+      addFloatingText(x, y, text, color = '#fbbf24') {
+        this.floatingTexts.push({
+          x, y, text, color, life: 1.0
+        });
+      }
+
+      triggerShake() {
+        this.shakeTime = 16;
+      }
+
+      render(gameState) {
+        const ctx = this.ctx;
+        const level = gameState.level;
+        if (!level) return;
+
+        ctx.save();
+        ctx.scale(this.dpr, this.dpr);
+
+        const w = this.canvas.width / this.dpr;
+        const h = this.canvas.height / this.dpr;
+
+        if (this.shakeTime > 0) {
+          const sx = (Math.random() - 0.5) * this.shakeTime * 0.8;
+          const sy = (Math.random() - 0.5) * this.shakeTime * 0.8;
+          ctx.translate(sx, sy);
+          this.shakeTime--;
+        }
+
+        const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+        ctx.fillStyle = isDark ? '#0c1222' : '#f8fafc';
+        ctx.fillRect(0, 0, w, h);
+
+        const metrics = this.getGridMetrics(level);
+
+        // Draw City Blocks
+        this.drawCityBlocks(ctx, level, metrics, isDark);
+
+        // Draw Roads & Markings
+        this.drawRoads(ctx, gameState, metrics, isDark);
+
+        // Draw Traffic Zones
+        this.drawTrafficZones(ctx, level, metrics, isDark);
+
+        // Draw Player Driven Route Trail
+        this.drawPlayerTrail(ctx, gameState, metrics);
+
+        // Draw Ghost Optimal Route
+        if (gameState.showOptimalGhost && gameState.optimalPath) {
+          this.drawGhostRoute(ctx, gameState.optimalPath, level, metrics);
+        }
+
+        // Draw Intersections & Interactive Highlights
+        this.drawNodes(ctx, gameState, metrics, isDark);
+
+        // Draw Fuel Stations
+        this.drawFuelStations(ctx, gameState, metrics);
+
+        // Draw Customer Pins with Mood Emojis
+        this.drawCustomers(ctx, gameState, metrics);
+
+        // Draw Depot (Warehouse)
+        this.drawDepot(ctx, gameState, metrics);
+
+        // Draw Hint Marker
+        if (gameState.hintTargetNode !== null) {
+          this.drawHintMarker(ctx, gameState.hintTargetNode, level, metrics);
+        }
+
+        // Draw Player Delivery Car
+        this.drawCar(ctx, gameState, metrics);
+
+        // Draw Effects
+        this.updateAndDrawEffects(ctx);
+
+        ctx.restore();
+      }
+
+      drawCityBlocks(ctx, level, metrics, isDark) {
+        const { cellW, cellH, padX, padY } = metrics;
+        for (let y = 0; y < level.height - 1; y++) {
+          for (let x = 0; x < level.width - 1; x++) {
+            const bx = padX + x * cellW + cellW * 0.18;
+            const by = padY + y * cellH + cellH * 0.18;
+            const bw = cellW * 0.64;
+            const bh = cellH * 0.64;
+
+            ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)';
+            ctx.fillRect(bx, by, bw, bh);
+
+            ctx.fillStyle = isDark ? 'rgba(30, 41, 59, 0.45)' : 'rgba(226, 232, 240, 0.8)';
+            ctx.beginPath();
+            ctx.roundRect(bx + 4, by + 4, bw - 8, bh - 8, 4);
+            ctx.fill();
+
+            if ((x + y) % 3 === 0) {
+              ctx.fillStyle = isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.25)';
+              ctx.beginPath();
+              ctx.arc(bx + bw / 2, by + bh / 2, Math.min(bw, bh) * 0.2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        }
+      }
+
+      drawRoads(ctx, gameState, metrics, isDark) {
+        const graph = gameState.graph;
+        const level = gameState.level;
+        const drawnSet = new Set();
+
+        for (let u = 0; u < level.width * level.height; u++) {
+          const p1 = this.nodeToScreen(u, level);
+          const edges = graph.adj.get(u) || [];
+
+          for (const edge of edges) {
+            const v = edge.to;
+            const pairKey = u < v ? `${u}-${v}` : `${v}-${u}`;
+            const p2 = this.nodeToScreen(v, level);
+
+            ctx.lineWidth = edge.type === 'd' ? 5 : 7;
+            ctx.strokeStyle = isDark ? '#1e293b' : '#cbd5e1';
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(p1.px, p1.py);
+            ctx.lineTo(p2.px, p2.py);
+            ctx.stroke();
+
+            let accentColor = '#38bdf8';
+            if (edge.type === 'v') accentColor = '#f59e0b';
+            else if (edge.type === 'd') accentColor = '#a855f7';
+
+            ctx.lineWidth = edge.type === 'd' ? 2 : 2.5;
+            ctx.strokeStyle = accentColor;
+            ctx.globalAlpha = isDark ? 0.65 : 0.85;
+            ctx.beginPath();
+            ctx.moveTo(p1.px, p1.py);
+            ctx.lineTo(p2.px, p2.py);
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+
+            const revEdges = graph.adj.get(v) || [];
+            const isOneWay = !revEdges.some(e => e.to === u);
+            if (isOneWay && !drawnSet.has(`${u}->${v}`)) {
+              drawnSet.add(`${u}->${v}`);
+              this.drawOneWayChevron(ctx, p1, p2, accentColor);
+            }
+
+            if (this.showRoadCosts && !drawnSet.has(pairKey)) {
+              drawnSet.add(pairKey);
+              const mx = (p1.px + p2.px) / 2;
+              const my = (p1.py + p2.py) / 2;
+              const costLabel = `${edge.cost.toFixed(1)}k`;
+
+              ctx.fillStyle = isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.9)';
+              ctx.strokeStyle = accentColor;
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.roundRect(mx - 14, my - 7, 28, 14, 4);
+              ctx.fill();
+              ctx.stroke();
+
+              ctx.fillStyle = isDark ? '#f8fafc' : '#0f172a';
+              ctx.font = '9px Consolas, monospace';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(costLabel, mx, my);
+            }
+          }
+        }
+      }
+
+      drawOneWayChevron(ctx, p1, p2, color) {
+        const mx = (p1.px + p2.px) / 2;
+        const my = (p1.py + p2.py) / 2;
+        const angle = Math.atan2(p2.py - p1.py, p2.px - p1.px);
+
+        ctx.save();
+        ctx.translate(mx, my);
+        ctx.rotate(angle);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-5, -4);
+        ctx.lineTo(2, 0);
+        ctx.lineTo(-5, 4);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      drawTrafficZones(ctx, level, metrics, isDark) {
+        if (!level.traffic) return;
+        for (const [k, mult] of Object.entries(level.traffic)) {
+          const [x, y] = k.split(',').map(Number);
+          const id = y * level.width + x;
+          const pt = this.nodeToScreen(id, level);
+
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.18)';
+          ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(pt.px, pt.py, 22, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#ef4444';
+          ctx.font = 'bold 9px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`⚠️${mult}x`, pt.px, pt.py - 14);
+        }
+      }
+
+      drawNodes(ctx, gameState, metrics, isDark) {
+        const level = gameState.level;
+        const validMoves = gameState.getValidMoves();
+
+        for (let i = 0; i < level.width * level.height; i++) {
+          const pt = this.nodeToScreen(i, level);
+          const isValidMove = validMoves.includes(i);
+          const isHovered = gameState.hoveredNode === i;
+
+          ctx.fillStyle = isDark ? '#334155' : '#94a3b8';
+          ctx.beginPath();
+          ctx.arc(pt.px, pt.py, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          if (isValidMove) {
+            ctx.save();
+            const pulse = Math.sin(Date.now() / 200) * 2;
+            ctx.strokeStyle = isHovered ? '#38bdf8' : 'rgba(52, 211, 153, 0.8)';
+            ctx.lineWidth = isHovered ? 2.5 : 1.5;
+            ctx.beginPath();
+            ctx.arc(pt.px, pt.py, 10 + pulse, 0, Math.PI * 2);
+            ctx.stroke();
+
+            if (isHovered) {
+              ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
+              ctx.fill();
+            }
+            ctx.restore();
+          }
+        }
+      }
+
+      drawPlayerTrail(ctx, gameState, metrics) {
+        const path = gameState.trailPath;
+        if (path.length < 2) return;
+
+        ctx.save();
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 3.5;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 8;
+
+        ctx.beginPath();
+        const start = this.nodeToScreen(path[0], gameState.level);
+        ctx.moveTo(start.px, start.py);
+        for (let i = 1; i < path.length; i++) {
+          const pt = this.nodeToScreen(path[i], gameState.level);
+          ctx.lineTo(pt.px, pt.py);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      drawGhostRoute(ctx, path, level, metrics) {
+        if (!path || path.length < 2) return;
+        ctx.save();
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([8, 6]);
+        ctx.lineDashOffset = -(Date.now() / 40) % 14;
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = 10;
+
+        ctx.beginPath();
+        const start = this.nodeToScreen(path[0], level);
+        ctx.moveTo(start.px, start.py);
+        for (let i = 1; i < path.length; i++) {
+          const pt = this.nodeToScreen(path[i], level);
+          ctx.lineTo(pt.px, pt.py);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      drawDepot(ctx, gameState, metrics) {
+        const level = gameState.level;
+        const depotNode = gameState.graph.nodeId(level.depot[0], level.depot[1]);
+        const pt = this.nodeToScreen(depotNode, level);
+        const allDelivered = gameState.areAllMandatoryDelivered();
+
+        ctx.save();
+        if (allDelivered) {
+          const halo = Math.sin(Date.now() / 180) * 4;
+          ctx.strokeStyle = '#fbbf24';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(pt.px, pt.py, 22 + halo, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        ctx.fillStyle = '#1e293b';
+        ctx.strokeStyle = allDelivered ? '#fbbf24' : '#e2e8f0';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(pt.px - 14, pt.py - 14, 28, 28, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = allDelivered ? '#fbbf24' : '#94a3b8';
+        ctx.fillRect(pt.px - 9, pt.py - 8, 18, 3);
+        ctx.fillRect(pt.px - 9, pt.py - 3, 18, 3);
+        ctx.fillRect(pt.px - 9, pt.py + 2, 18, 3);
+
+        ctx.fillStyle = allDelivered ? '#fbbf24' : '#ffffff';
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(allDelivered ? "FINISH 🏁" : "DEPOT 🏠", pt.px, pt.py - 18);
+        ctx.restore();
+      }
+
+      drawFuelStations(ctx, gameState, metrics) {
+        const level = gameState.level;
+        if (!level.fuelStations) return;
+
+        for (const [x, y] of level.fuelStations) {
+          const id = gameState.graph.nodeId(x, y);
+          const pt = this.nodeToScreen(id, level);
+
+          ctx.save();
+          ctx.fillStyle = '#065f46';
+          ctx.strokeStyle = '#34d399';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(pt.px, pt.py, 13, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#34d399';
+          ctx.font = '13px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText("⛽", pt.px, pt.py + 1);
+
+          ctx.font = 'bold 8px sans-serif';
+          ctx.fillText("REFUEL", pt.px, pt.py + 18);
+          ctx.restore();
+        }
+      }
+
+      drawCustomers(ctx, gameState, metrics) {
+        const customers = gameState.customers;
+        const nowTravelled = gameState.distanceTravelled;
+
+        for (const cust of customers) {
+          const pt = this.nodeToScreen(cust.node, gameState.level);
+          const isDelivered = cust.delivered;
+
+          ctx.save();
+
+          if (isDelivered) {
+            ctx.fillStyle = 'rgba(52, 211, 153, 0.3)';
+            ctx.strokeStyle = '#34d399';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(pt.px, pt.py, 11, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#34d399';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText("✓", pt.px, pt.py);
+
+            // Floating happy emoji
+            ctx.font = '10px sans-serif';
+            ctx.fillText("🥳", pt.px + 12, pt.py - 12);
+          } else {
+            let moodEmoji = "😊";
+            if (cust.patience !== undefined) {
+              const remaining = Math.max(0, cust.patience - nowTravelled);
+              const pct = remaining / cust.patience;
+              let ringColor = '#34d399';
+              if (pct < 0.25) {
+                ringColor = '#ef4444';
+                moodEmoji = "😡";
+              } else if (pct < 0.5) {
+                ringColor = '#f59e0b';
+                moodEmoji = "😰";
+              } else {
+                moodEmoji = "🕒";
+              }
+
+              ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+              ctx.lineWidth = 3;
+              ctx.beginPath();
+              ctx.arc(pt.px, pt.py, 18, 0, Math.PI * 2);
+              ctx.stroke();
+
+              ctx.strokeStyle = ringColor;
+              ctx.lineWidth = 3;
+              ctx.beginPath();
+              ctx.arc(pt.px, pt.py, 18, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
+              ctx.stroke();
+
+              ctx.fillStyle = ringColor;
+              ctx.font = 'bold 8px Consolas, monospace';
+              ctx.textAlign = 'center';
+              ctx.fillText(`${remaining.toFixed(1)}k`, pt.px, pt.py + 26);
+            }
+
+            // Customer Pin Body
+            ctx.fillStyle = cust.mandatory === false ? '#d97706' : '#ef4444';
+            ctx.beginPath();
+            ctx.arc(pt.px, pt.py - 6, 9, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Pin point
+            ctx.beginPath();
+            ctx.moveTo(pt.px - 6, pt.py - 4);
+            ctx.lineTo(pt.px, pt.py + 4);
+            ctx.lineTo(pt.px + 6, pt.py - 4);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText("📦", pt.px, pt.py - 6);
+
+            // Name & Payout Badge
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 8.5px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#000000';
+            ctx.shadowBlur = 4;
+            const badgeText = `${moodEmoji} ${cust.name} ($${cust.payout})`;
+            ctx.fillText(badgeText, pt.px, pt.py - 18);
+          }
+
+          ctx.restore();
+        }
+      }
+
+      drawHintMarker(ctx, targetNode, level, metrics) {
+        const pt = this.nodeToScreen(targetNode, level);
+        ctx.save();
+        const pulse = Math.sin(Date.now() / 150) * 4;
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(pt.px, pt.py, 16 + pulse, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText("💡 BEST MOVE", pt.px, pt.py - 24);
+        ctx.restore();
+      }
+
+      drawCar(ctx, gameState, metrics) {
+        const pos = gameState.getCarScreenPos(this);
+        const heading = gameState.carAngle;
+
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+        ctx.rotate(heading);
+
+        // Headlight Beams
+        const beamGrad = ctx.createRadialGradient(18, 0, 2, 45, 0, 35);
+        beamGrad.addColorStop(0, 'rgba(254, 240, 138, 0.45)');
+        beamGrad.addColorStop(1, 'rgba(254, 240, 138, 0)');
+        ctx.fillStyle = beamGrad;
+        ctx.beginPath();
+        ctx.moveTo(12, -4);
+        ctx.lineTo(46, -18);
+        ctx.lineTo(46, 18);
+        ctx.lineTo(12, 4);
+        ctx.closePath();
+        ctx.fill();
+
+        // Car Shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.beginPath();
+        ctx.roundRect(-15, -9, 30, 18, 4);
+        ctx.fill();
+
+        // Vehicle Skin Body
+        let carColor = '#fbbf24';
+        let strokeColor = '#b45309';
+        if (this.vehicleSkin === 'cyber') {
+          carColor = '#00f0ff';
+          strokeColor = '#0284c7';
+        } else if (this.vehicleSkin === 'turbo') {
+          carColor = '#ef4444';
+          strokeColor = '#991b1b';
+        } else if (this.vehicleSkin === 'stealth') {
+          carColor = '#475569';
+          strokeColor = '#0f172a';
+        }
+
+        ctx.fillStyle = carColor;
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(-14, -8, 28, 16, 4);
+        ctx.fill();
+        ctx.stroke();
+
+        // Cabin Windshield
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.roundRect(2, -6, 6, 12, 2);
+        ctx.fill();
+
+        // Roof parcel rack
+        ctx.fillStyle = '#92400e';
+        ctx.fillRect(-10, -5, 8, 10);
+        ctx.fillStyle = '#d97706';
+        ctx.fillRect(-8, -4, 5, 8);
+
+        // Auxiliary Tank visual upgrade if owned
+        const inv = gameState.shop.getInventory();
+        if ((inv.extra_tank || 0) > 0) {
+          ctx.fillStyle = '#ef4444';
+          ctx.fillRect(-12, -7, 4, 3);
+          ctx.fillRect(-12, 4, 4, 3);
+        }
+
+        // Headlights
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(13, -7, 2, 3);
+        ctx.fillRect(13, 4, 2, 3);
+
+        // Tail brake lights
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(-14, -7, 2, 3);
+        ctx.fillRect(-14, 4, 2, 3);
+
+        ctx.restore();
+      }
+
+      updateAndDrawEffects(ctx) {
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+          const p = this.particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.life -= p.decay;
+
+          if (p.life <= 0) {
+            this.particles.splice(i, 1);
+            continue;
+          }
+
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.life;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1.0;
+
+        for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+          const ft = this.floatingTexts[i];
+          ft.y -= 0.8;
+          ft.life -= 0.02;
+
+          if (ft.life <= 0) {
+            this.floatingTexts.splice(i, 1);
+            continue;
+          }
+
+          ctx.save();
+          ctx.fillStyle = ft.color;
+          ctx.globalAlpha = ft.life;
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.shadowColor = '#000000';
+          ctx.shadowBlur = 4;
+          ctx.fillText(ft.text, ft.x, ft.y);
+          ctx.restore();
+        }
+      }
+    }
+
+    // --- GAME ENGINE & ORCHESTRATOR ---
+    class GameEngine {
+      constructor() {
+        this.audio = new AudioEngine();
+        this.shop = new ShopSystem();
+        this.canvas = document.getElementById('game-canvas');
+        this.container = document.getElementById('canvas-container');
+        this.renderer = new Renderer(this.canvas, this.container);
+
+        this.currentView = 'landing'; // landing, dashboard, game
+        this.currentLevelIndex = 0;
+        this.level = null;
+        this.graph = null;
+        this.solver = null;
+
+        // Pilot Profile & Progression
+        this.callsign = localStorage.getItem('pathpilot_callsign') || 'Pilot Swift';
+        this.vehicleSkin = localStorage.getItem('pathpilot_skin') || 'yellow';
+        this.cash = parseInt(localStorage.getItem('pathpilot_cash') || '0', 10);
+        this.totalDrops = parseInt(localStorage.getItem('pathpilot_total_drops') || '0', 10);
+        this.totalKm = parseFloat(localStorage.getItem('pathpilot_total_km') || '0.0');
+        this.levelScores = JSON.parse(localStorage.getItem('pathpilot_scores') || '{}');
+
+        this.renderer.vehicleSkin = this.vehicleSkin;
+
+        // Player In-Level State
+        this.playerNode = 0;
+        this.targetNode = 0;
+        this.moveProgress = 1.0;
+        this.moveDuration = 180;
+        this.moveStartTime = 0;
+        this.carAngle = 0;
+        this.distanceTravelled = 0.0;
+        this.fuel = Infinity;
+        this.maxFuel = Infinity;
+        this.score = 0;
+        this.customers = [];
+        this.trailPath = [];
+        this.undoStack = [];
+
+        this.optimalDistance = null;
+        this.optimalPath = null;
+        this.showOptimalGhost = false;
+        this.hintTargetNode = null;
+        this.hoveredNode = null;
+        this.state = 'INIT';
+
+        this.setupNavigation();
+        this.setupInteractiveHeroDemo();
+        this.renderDashboardMatrix();
+        this.renderAchievements();
+        this.updateHeaderProfile();
+        this.setupEventListeners();
+
+        // Main animation loop
+        const loop = () => {
+          if (this.currentView === 'game') {
+            this.update();
+            this.renderer.render(this);
+          }
+          requestAnimationFrame(loop);
+        };
+        requestAnimationFrame(loop);
+      }
+
+      setupNavigation() {
+        // Tab click handlers
+        document.querySelectorAll('.nav-tab[data-view]').forEach(tab => {
+          tab.addEventListener('click', () => {
+            const v = tab.getAttribute('data-view');
+            this.switchView(v);
+          });
+        });
+
+        document.getElementById('nav-brand').addEventListener('click', (e) => {
+          e.preventDefault();
+          this.switchView('landing');
+        });
+
+        document.getElementById('landing-btn-hub').addEventListener('click', () => this.switchView('dashboard'));
+        document.getElementById('landing-btn-quick').addEventListener('click', () => {
+          this.startLevel(0);
+          this.switchView('game');
+        });
+        document.getElementById('landing-btn-daily').addEventListener('click', () => {
+          this.startLevel(0, true);
+          this.switchView('game');
+        });
+
+        document.getElementById('dash-btn-continue').addEventListener('click', () => {
+          // Find next uncompleted level
+          let nextIdx = 0;
+          for (let i = 0; i < LEVELS.length; i++) {
+            if (!this.levelScores[`lvl_${LEVELS[i].id}`]) {
+              nextIdx = i;
+              break;
+            }
+          }
+          this.startLevel(nextIdx);
+          this.switchView('game');
+        });
+
+        document.getElementById('dash-btn-quick-daily').addEventListener('click', () => {
+          this.startLevel(0, true);
+          this.switchView('game');
+        });
+        document.getElementById('dash-daily-play-btn').addEventListener('click', () => {
+          this.startLevel(0, true);
+          this.switchView('game');
+        });
+
+        document.getElementById('btn-back-to-hub').addEventListener('click', () => this.switchView('dashboard'));
+        document.getElementById('btn-complete-hub').addEventListener('click', () => {
+          document.getElementById('modal-complete').classList.remove('active');
+          this.switchView('dashboard');
+        });
+        document.getElementById('btn-fail-hub').addEventListener('click', () => {
+          document.getElementById('modal-failed').classList.remove('active');
+          this.switchView('dashboard');
+        });
+
+        // Modals triggers
+        document.getElementById('tab-shop').addEventListener('click', () => this.openShop());
+        document.getElementById('tab-leaderboard').addEventListener('click', () => this.openLeaderboard());
+
+        // Callsign change
+        const callsignInput = document.getElementById('dash-callsign-input');
+        callsignInput.addEventListener('change', () => {
+          this.callsign = callsignInput.value.trim() || 'Pilot Swift';
+          localStorage.setItem('pathpilot_callsign', this.callsign);
+          this.updateHeaderProfile();
+        });
+
+        // Vehicle Skin selection
+        document.querySelectorAll('.skin-chip[data-skin]').forEach(chip => {
+          chip.addEventListener('click', () => {
+            document.querySelectorAll('.skin-chip').forEach(c => c.classList.remove('selected'));
+            chip.classList.add('selected');
+            this.vehicleSkin = chip.getAttribute('data-skin');
+            this.renderer.vehicleSkin = this.vehicleSkin;
+            localStorage.setItem('pathpilot_skin', this.vehicleSkin);
+          });
+        });
+      }
+
+      switchView(viewName) {
+        this.currentView = viewName;
+
+        document.querySelectorAll('.view-screen').forEach(el => el.classList.remove('active'));
+        const targetView = document.getElementById(`view-${viewName}`);
+        if (targetView) targetView.classList.add('active');
+
+        document.querySelectorAll('.nav-tab[data-view]').forEach(tab => {
+          if (tab.getAttribute('data-view') === viewName) {
+            tab.classList.add('active');
+          } else {
+            tab.classList.remove('active');
+          }
+        });
+
+        if (viewName === 'game') {
+          setTimeout(() => this.renderer.resize(), 50);
+        } else if (viewName === 'dashboard') {
+          this.renderDashboardMatrix();
+          this.renderAchievements();
+        }
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      updateHeaderProfile() {
+        document.getElementById('header-pilot-name').innerText = this.callsign;
+        document.getElementById('header-cash').innerText = `$${this.cash}`;
+
+        const totalStars = Object.values(this.levelScores).reduce((s, r) => s + (r.stars || 0), 0);
+        let badge = "📦";
+        let rankTitle = "Rookie Courier (Lvl 1)";
+        if (totalStars >= 35) { badge = "👑"; rankTitle = "Dispatch Legend (Lvl 5)"; }
+        else if (totalStars >= 25) { badge = "⚡"; rankTitle = "Route Master (Lvl 4)"; }
+        else if (totalStars >= 15) { badge = "⭐"; rankTitle = "Senior Courier (Lvl 3)"; }
+        else if (totalStars >= 5) { badge = "🚚"; rankTitle = "District Courier (Lvl 2)"; }
+
+        document.getElementById('header-pilot-badge').innerText = badge;
+        document.getElementById('dash-avatar-icon').innerText = badge;
+        document.getElementById('dash-rank-title').innerText = `Rank: ${rankTitle}`;
+        document.getElementById('dash-stat-stars').innerText = `${totalStars} / 45`;
+        document.getElementById('dash-stat-cash').innerText = `$${this.cash}`;
+        document.getElementById('dash-stat-drops').innerText = `${this.totalDrops}`;
+        document.getElementById('dash-stat-dist').innerText = `${this.totalKm.toFixed(1)} km`;
+
+        // Update selected skin chip
+        document.querySelectorAll('.skin-chip').forEach(c => {
+          if (c.getAttribute('data-skin') === this.vehicleSkin) c.classList.add('selected');
+          else c.classList.remove('selected');
+        });
+      }
+
+      renderDashboardMatrix() {
+        const wrapper = document.getElementById('district-zones-wrapper');
+        wrapper.innerHTML = '';
+
+        // Group 15 levels into 5 districts (3 levels per district)
+        const districts = [
+          { name: "District 1: Suburbia Heights", icon: "🏡", range: [0, 1, 2], desc: "Asymmetric cost tutorial & diagonal alleyway shortcuts." },
+          { name: "District 2: Downtown Detours", icon: "🚧", range: [3, 4, 5], desc: "Roadblock barricades & one-way avenues." },
+          { name: "District 3: Industrial Fuel Depots", icon: "⛽", range: [6, 7, 8], desc: "Limited tank capacities & fuel station pit stops." },
+          { name: "District 4: Rush Hour Express", icon: "⏱", range: [9, 10, 11], desc: "Impatient clients with distance countdown timers." },
+          { name: "District 5: Megacity Nexus", icon: "🌆", range: [12, 13, 14], desc: "Combined fuel, deadlines, traffic congestion zones & bonus VIPs." }
+        ];
+
+        let nextUnlockedNum = 1;
+
+        districts.forEach(dist => {
+          const groupEl = document.createElement('div');
+          groupEl.className = 'district-group';
+
+          groupEl.innerHTML = `
+            <div class="district-header">
+              <div class="district-title">
+                <span>${dist.icon}</span> <span>${dist.name}</span>
+              </div>
+              <span class="district-badge">${dist.desc}</span>
+            </div>
+            <div class="district-levels-grid"></div>
+          `;
+
+          const grid = groupEl.querySelector('.district-levels-grid');
+
+          dist.range.forEach(lvlIdx => {
+            const lvl = LEVELS[lvlIdx];
+            const lvlKey = `lvl_${lvl.id}`;
+            const record = this.levelScores[lvlKey];
+            const isUnlocked = lvlIdx === 0 || this.levelScores[`lvl_${LEVELS[lvlIdx - 1].id}`] !== undefined;
+
+            if (isUnlocked && !record && nextUnlockedNum === 1) {
+              nextUnlockedNum = lvl.id;
+            }
+
+            const card = document.createElement('div');
+            card.className = `dash-level-card ${isUnlocked ? '' : 'locked'}`;
+
+            const starsText = record ? '★'.repeat(record.stars) + '☆'.repeat(3 - record.stars) : '☆☆☆';
+            const distText = record ? `Best: <strong>${record.bestDist.toFixed(1)} km</strong>` : 'Uncompleted';
+
+            let tagsHtml = `<span class="dash-tag">📦 ${lvl.customers.length} shops</span>`;
+            if (lvl.fuel) tagsHtml += `<span class="dash-tag">⛽ Fuel Tank</span>`;
+            if (lvl.customers.some(c => c.patience)) tagsHtml += `<span class="dash-tag">⏱ Timers</span>`;
+            if (lvl.oneWay) tagsHtml += `<span class="dash-tag">⛔ One-Way</span>`;
+            if (lvl.traffic) tagsHtml += `<span class="dash-tag">⚠️ Traffic</span>`;
+
+            card.innerHTML = `
+              <div>
+                <div class="dash-level-top">
+                  <span class="dash-level-num">Route ${lvl.id}</span>
+                  <span class="dash-level-stars">${starsText}</span>
+                </div>
+                <div class="dash-level-title">${lvl.title}</div>
+                <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 8px;">${lvl.subtitle}</div>
+                <div class="dash-level-tags">${tagsHtml}</div>
+              </div>
+              <div class="dash-level-bottom">
+                <span class="dash-level-dist">${isUnlocked ? distText : '🔒 Locked'}</span>
+                <button class="btn-launch-level" ${isUnlocked ? '' : 'disabled'}>
+                  ${isUnlocked ? 'Launch ➔' : 'Locked'}
+                </button>
+              </div>
+            `;
+
+            if (isUnlocked) {
+              card.querySelector('button').addEventListener('click', () => {
+                this.startLevel(lvlIdx);
+                this.switchView('game');
+              });
+            }
+
+            grid.appendChild(card);
+          });
+
+          wrapper.appendChild(groupEl);
+        });
+
+        document.getElementById('dash-next-lvl-num').innerText = nextUnlockedNum;
+      }
+
+      renderAchievements() {
+        const grid = document.getElementById('achievements-grid');
+        grid.innerHTML = '';
+
+        const totalStars = Object.values(this.levelScores).reduce((s, r) => s + (r.stars || 0), 0);
+        const achievements = [
+          { id: 'first_drop', icon: '📦', title: 'First Drop', desc: 'Deliver your first parcel to a customer.', unlocked: this.totalDrops >= 1 },
+          { id: 'perfectionist', icon: '⭐', title: 'Route Perfectionist', desc: 'Earn a 3-star rating on any level.', unlocked: Object.values(this.levelScores).some(r => r.stars === 3) },
+          { id: 'district_champ', icon: '🏆', title: 'District Master', desc: 'Accumulate 15 or more career stars.', unlocked: totalStars >= 15 },
+          { id: 'marathon', icon: '🛣️', title: 'Road Veteran', desc: 'Drive more than 100 km total in your career.', unlocked: this.totalKm >= 100 },
+          { id: 'big_spender', icon: '💵', title: 'Courier Mogul', desc: 'Earn over $300 in customer delivery payouts.', unlocked: this.cash >= 300 },
+          { id: 'grand_master', icon: '👑', title: 'Metropolis Legend', desc: 'Conquer all 15 city routes.', unlocked: Object.keys(this.levelScores).length >= 15 }
+        ];
+
+        achievements.forEach(a => {
+          const card = document.createElement('div');
+          card.className = `achievement-card ${a.unlocked ? 'unlocked' : ''}`;
+          card.innerHTML = `
+            <div class="achieve-icon">${a.icon}</div>
+            <div class="achieve-info">
+              <span class="achieve-title">${a.title}</span>
+              <span class="achieve-desc">${a.desc}</span>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+      }
+
+      setupInteractiveHeroDemo() {
+        const canvas = document.getElementById('demo-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        let mode = 'diag'; // 'ortho' or 'diag'
+        let carT = 0;
+
+        const btn = document.getElementById('btn-demo-toggle');
+        btn.addEventListener('click', () => {
+          mode = mode === 'diag' ? 'ortho' : 'diag';
+          carT = 0;
+          document.getElementById('demo-ortho-box').classList.toggle('faster', mode === 'ortho');
+          document.getElementById('demo-diag-box').classList.toggle('faster', mode === 'diag');
+        });
+
+        const drawDemo = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+
+          // Grid roads: (50, 150) to (350, 50)
+          const pStart = { x: 70, y: 150 };
+          const pMid = { x: 270, y: 150 };
+          const pDest = { x: 330, y: 60 };
+
+          // Road lines
+          ctx.strokeStyle = isDark ? '#1e293b' : '#cbd5e1';
+          ctx.lineWidth = 6;
+          ctx.lineCap = 'round';
+
+          // Orthogonal path
+          ctx.beginPath();
+          ctx.moveTo(pStart.x, pStart.y);
+          ctx.lineTo(pMid.x, pMid.y);
+          ctx.lineTo(pMid.x, pDest.y);
+          ctx.lineTo(pDest.x, pDest.y);
+          ctx.stroke();
+
+          // Diagonal shortcut road
+          ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)';
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.moveTo(pStart.x, pStart.y);
+          ctx.lineTo(210, 60);
+          ctx.lineTo(pDest.x, pDest.y);
+          ctx.stroke();
+
+          // Labels
+          ctx.fillStyle = '#f8fafc';
+          ctx.font = 'bold 10px Consolas, monospace';
+          ctx.fillText("DEPOT", pStart.x - 14, pStart.y + 24);
+          ctx.fillText("SHOP 📦", pDest.x - 14, pDest.y - 14);
+
+          // Moving demo car
+          carT = (carT + 0.015) % 1.0;
+          let cx, cy;
+          if (mode === 'diag') {
+            if (carT < 0.6) {
+              const t = carT / 0.6;
+              cx = pStart.x + (210 - pStart.x) * t;
+              cy = pStart.y + (60 - pStart.y) * t;
+            } else {
+              const t = (carT - 0.6) / 0.4;
+              cx = 210 + (pDest.x - 210) * t;
+              cy = 60;
+            }
+          } else {
+            if (carT < 0.5) {
+              const t = carT / 0.5;
+              cx = pStart.x + (pMid.x - pStart.x) * t;
+              cy = pStart.y;
+            } else if (carT < 0.8) {
+              const t = (carT - 0.5) / 0.3;
+              cx = pMid.x;
+              cy = pMid.y + (pDest.y - pMid.y) * t;
+            } else {
+              const t = (carT - 0.8) / 0.2;
+              cx = pMid.x + (pDest.x - pMid.x) * t;
+              cy = pDest.y;
+            }
+          }
+
+          // Car circle
+          ctx.fillStyle = mode === 'diag' ? '#a855f7' : '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+          ctx.fill();
+
+          requestAnimationFrame(drawDemo);
+        };
+        requestAnimationFrame(drawDemo);
+      }
+
+      startLevel(levelIndex, isDaily = false) {
+        if (isDaily) {
+          const seed = getTodaySeedNumber();
+          this.level = generateDailyLevel(seed);
+        } else {
+          this.currentLevelIndex = levelIndex;
+          this.level = LEVELS[levelIndex];
+        }
+
+        this.graph = new Graph(this.level.width, this.level.height);
+        this.graph.buildDefaultEdges();
+        this.graph.applyModifications(
+          this.level.blocked || [],
+          this.level.oneWay || [],
+          this.level.traffic || {}
+        );
+
+        const depotNode = this.graph.nodeId(this.level.depot[0], this.level.depot[1]);
+        this.playerNode = depotNode;
+        this.targetNode = depotNode;
+        this.moveProgress = 1.0;
+        this.carAngle = 0;
+        this.distanceTravelled = 0.0;
+        this.showOptimalGhost = false;
+        this.hintTargetNode = null;
+        this.trailPath = [depotNode];
+        this.undoStack = [];
+
+        const inv = this.shop.getInventory();
+        const extraTank = (inv.extra_tank || 0) * 4;
+        const extraPatience = (inv.patience_pass || 0) * 6;
+
+        this.maxFuel = this.level.fuel ? (this.level.fuel + extraTank) : Infinity;
+        this.fuel = this.maxFuel;
+
+        this.customers = this.level.customers.map(c => ({
+          ...c,
+          node: this.graph.nodeId(c.pos[0], c.pos[1]),
+          delivered: false,
+          patience: c.patience !== undefined ? (c.patience + extraPatience) : undefined
+        }));
+
+        const fStations = (this.level.fuelStations || []).map(p => this.graph.nodeId(p[0], p[1]));
+        this.solver = new StateSpaceSolver(this.graph, depotNode, this.customers, fStations, this.maxFuel);
+        const solution = this.solver.solve();
+
+        if (solution && solution.bestResult) {
+          this.optimalDistance = solution.bestResult.cost;
+          this.optimalPath = solution.bestResult.path;
+        } else {
+          this.optimalDistance = 0;
+          this.optimalPath = [];
+        }
+
+        this.updateHUD();
+        this.setRadioText(`HQ Dispatch: Mission initiated for ${this.customers.length} drops. Drive carefully pilot!`);
+        this.showBriefingModal();
+      }
+
+      setRadioText(text) {
+        const el = document.getElementById('radio-ticker-text');
+        if (el) {
+          el.innerText = text;
+          this.audio.playRadioSquawk();
+        }
+      }
+
+      showBriefingModal() {
+        this.state = 'BRIEFING';
+        const modal = document.getElementById('modal-intro');
+        document.getElementById('intro-title').innerText = `${this.level.id === 'daily' ? 'Daily' : 'Route ' + this.level.id}: ${this.level.title}`;
+        document.getElementById('intro-desc').innerText = this.level.subtitle;
+
+        let detailsHtml = `
+          <div><strong>Parcels to deliver:</strong> ${this.customers.length} shops</div>
+          <div><strong>Optimal Distance Target:</strong> <span style="color: var(--accent-cyan); font-family: monospace;">${this.optimalDistance ? this.optimalDistance.toFixed(1) + ' km' : 'Calculating...'}</span></div>
+        `;
+        if (this.maxFuel !== Infinity) {
+          detailsHtml += `<div><strong>Fuel Capacity:</strong> <span style="color: var(--accent-emerald); font-family: monospace;">${this.maxFuel} km</span></div>`;
+        }
+        document.getElementById('intro-details').innerHTML = detailsHtml;
+
+        const tutEl = document.getElementById('intro-tutorial');
+        if (this.level.tutorial) {
+          tutEl.style.display = 'block';
+          tutEl.innerText = this.level.tutorial;
+        } else {
+          tutEl.style.display = 'none';
+        }
+
+        modal.classList.add('active');
+      }
+
+      getValidMoves() {
+        if (this.state !== 'PLAYING' || this.moveProgress < 1.0) return [];
+        const edges = this.graph.adj.get(this.playerNode) || [];
+        return edges.map(e => e.to);
+      }
+
+      getEdge(u, v) {
+        const edges = this.graph.adj.get(u) || [];
+        return edges.find(e => e.to === v);
+      }
+
+      makeMove(nextNode) {
+        if (this.state !== 'PLAYING' || this.moveProgress < 1.0) return;
+
+        const edge = this.getEdge(this.playerNode, nextNode);
+        if (!edge) return;
+
+        if (this.fuel < edge.cost - 1e-6) {
+          this.audio.playFail();
+          this.renderer.triggerShake();
+          this.showBanner("Out of fuel! Refuel or undo move.", '#ef4444');
+          this.setRadioText("HQ Dispatch: Alert! Fuel tank depleted. Plan your refuel stop!");
+          return;
+        }
+
+        this.undoStack.push({
+          playerNode: this.playerNode,
+          distanceTravelled: this.distanceTravelled,
+          fuel: this.fuel,
+          score: this.score,
+          cash: this.cash,
+          trailPath: [...this.trailPath],
+          customers: this.customers.map(c => ({ ...c }))
+        });
+
+        const p1 = this.renderer.nodeToScreen(this.playerNode, this.level);
+        const p2 = this.renderer.nodeToScreen(nextNode, this.level);
+        this.carAngle = Math.atan2(p2.py - p1.py, p2.px - p1.px);
+
+        this.targetNode = nextNode;
+        this.moveProgress = 0.0;
+        this.moveStartTime = performance.now();
+        this.hintTargetNode = null;
+
+        this.fuel -= edge.cost;
+        this.distanceTravelled += edge.cost;
+        this.totalKm += edge.cost;
+
+        this.audio.playDrive();
+        this.updateHUD();
+      }
+
+      update() {
+        if (this.moveProgress < 1.0) {
+          const now = performance.now();
+          const elapsed = now - this.moveStartTime;
+          this.moveProgress = Math.min(1.0, elapsed / this.moveDuration);
+
+          if (this.moveProgress >= 1.0) {
+            this.playerNode = this.targetNode;
+            this.trailPath.push(this.playerNode);
+            this.onArriveAtNode(this.playerNode);
+          }
+        }
+      }
+
+      getCarScreenPos(renderer) {
+        const p1 = renderer.nodeToScreen(this.playerNode, this.level);
+        if (this.moveProgress >= 1.0) return { x: p1.px, y: p1.py };
+
+        const p2 = renderer.nodeToScreen(this.targetNode, this.level);
+        const t = 1 - Math.pow(1 - this.moveProgress, 2);
+        return {
+          x: p1.px + (p2.px - p1.px) * t,
+          y: p1.py + (p2.py - p1.py) * t
+        };
+      }
+
+      onArriveAtNode(node) {
+        // Refuel check
+        if (this.level.fuelStations) {
+          const [fx, fy] = [node % this.level.width, Math.floor(node / this.level.width)];
+          const isFuelStation = this.level.fuelStations.some(p => p[0] === fx && p[1] === fy);
+          if (isFuelStation && this.fuel < this.maxFuel) {
+            this.fuel = this.maxFuel;
+            this.audio.playRefuel();
+            const pt = this.renderer.nodeToScreen(node, this.level);
+            this.renderer.addFloatingText(pt.px, pt.py - 14, "TANK FULL! ⛽", '#34d399');
+            this.setRadioText("HQ Dispatch: Fuel tank topped off! Proceed with remaining drops.");
+          }
+        }
+
+        // Delivery check
+        for (const cust of this.customers) {
+          if (!cust.delivered && cust.node === node) {
+            if (cust.patience !== undefined && this.distanceTravelled > cust.patience + 1e-6) {
+              if (cust.mandatory !== false) {
+                this.triggerLevelFailed("A mandatory customer deadline expired!");
+                return;
+              }
+            } else {
+              cust.delivered = true;
+              this.cash += cust.payout;
+              this.totalDrops++;
+              const bonusSpeed = cust.patience ? Math.floor((cust.patience - this.distanceTravelled) * 10) : 0;
+              const earnedPts = 100 + Math.max(0, bonusSpeed);
+              this.score += earnedPts;
+
+              const pt = this.renderer.nodeToScreen(node, this.level);
+              this.renderer.addDeliveryParticles(pt.px, pt.py);
+              this.renderer.addFloatingText(pt.px, pt.py - 16, `+${earnedPts} PTS  +$${cust.payout}`, '#fbbf24');
+              this.audio.playDeliver();
+              this.setRadioText(`HQ Dispatch: 10-4! Package delivered to ${cust.name}. +$${cust.payout} deposited.`);
+            }
+          }
+        }
+
+        // Deadline check for remaining
+        for (const cust of this.customers) {
+          if (!cust.delivered && cust.mandatory !== false && cust.patience !== undefined) {
+            if (this.distanceTravelled > cust.patience + 1e-6) {
+              this.triggerLevelFailed(`${cust.name}'s deadline expired!`);
+              return;
+            }
+          }
+        }
+
+        // Finish check
+        const depotNode = this.graph.nodeId(this.level.depot[0], this.level.depot[1]);
+        if (node === depotNode && this.areAllMandatoryDelivered()) {
+          this.triggerLevelComplete();
+          return;
+        }
+
+        // Fuel out check
+        if (this.fuel <= 0.001) {
+          const edges = this.graph.adj.get(this.playerNode) || [];
+          const canMove = edges.some(e => e.cost <= this.fuel + 1e-6);
+          if (!canMove) {
+            this.triggerLevelFailed("Your delivery van ran completely out of fuel!");
+            return;
+          }
+        }
+
+        this.updateHUD();
+      }
+
+      areAllMandatoryDelivered() {
+        return this.customers.every(c => c.mandatory === false || c.delivered);
+      }
+
+      triggerLevelComplete() {
+        this.state = 'COMPLETED';
+        this.audio.playWin();
+        this.setRadioText("HQ Dispatch: All parcels delivered and depot reached! Outstanding routing pilot.");
+
+        const ratio = this.optimalDistance / this.distanceTravelled;
+        let stars = 1;
+        if (this.distanceTravelled <= this.optimalDistance + 0.05) {
+          stars = 3;
+        } else if (this.distanceTravelled <= this.optimalDistance * 1.10 + 0.05) {
+          stars = 2;
+        }
+
+        const efficiencyScore = Math.floor(ratio * 500);
+        this.score += efficiencyScore;
+
+        const lvlKey = `lvl_${this.level.id}`;
+        const prev = this.levelScores[lvlKey] || { stars: 0, bestDist: Infinity, score: 0 };
+        if (stars > prev.stars || (stars === prev.stars && this.distanceTravelled < prev.bestDist)) {
+          this.levelScores[lvlKey] = {
+            stars: Math.max(stars, prev.stars),
+            bestDist: Math.min(this.distanceTravelled, prev.bestDist),
+            score: Math.max(this.score, prev.score)
+          };
+        }
+        this.saveProgress();
+        this.updateHeaderProfile();
+
+        document.getElementById('complete-player-dist').innerText = `${this.distanceTravelled.toFixed(1)} km`;
+        document.getElementById('complete-optimal-dist').innerText = `${this.optimalDistance.toFixed(1)} km`;
+        document.getElementById('complete-efficiency').innerText = `${(ratio * 100).toFixed(1)}%`;
+        document.getElementById('complete-cash').innerText = `+$${this.customers.filter(c => c.delivered).reduce((s, c) => s + c.payout, 0)}`;
+        document.getElementById('complete-score').innerText = `${this.score} pts`;
+
+        const starLabels = ["Completed!", "Great Route! (Within 10%)", "PERFECT ROUTE! (3 Stars)"];
+        document.getElementById('complete-rating-label').innerText = starLabels[stars - 1];
+
+        for (let i = 1; i <= 3; i++) {
+          const el = document.getElementById(`star-${i}`);
+          el.classList.remove('filled');
+          if (i <= stars) {
+            setTimeout(() => {
+              el.classList.add('filled');
+              this.audio.playStar(i - 1);
+            }, i * 350);
+          }
+        }
+
+        setTimeout(() => {
+          document.getElementById('modal-complete').classList.add('active');
+        }, 500);
+      }
+
+      triggerLevelFailed(reason) {
+        this.state = 'FAILED';
+        this.audio.playFail();
+        this.renderer.triggerShake();
+        this.setRadioText(`HQ Dispatch: Mayday! ${reason}`);
+
+        document.getElementById('failed-reason').innerText = reason;
+        const towBtn = document.getElementById('btn-failed-tow');
+        const inv = this.shop.getInventory();
+        if ((inv.emergency_tow || 0) > 0) {
+          towBtn.style.display = 'inline-block';
+        } else {
+          towBtn.style.display = 'none';
+        }
+
+        setTimeout(() => {
+          document.getElementById('modal-failed').classList.add('active');
+        }, 600);
+      }
+
+      undo() {
+        if (this.undoStack.length === 0 || this.moveProgress < 1.0) return;
+
+        const prev = this.undoStack.pop();
+        this.playerNode = prev.playerNode;
+        this.targetNode = prev.playerNode;
+        this.distanceTravelled = prev.distanceTravelled;
+        this.fuel = prev.fuel;
+        this.customers = prev.customers;
+        this.trailPath = prev.trailPath;
+
+        if (this.level.id >= 4) {
+          this.score = Math.max(0, this.score - 10);
+          this.showBanner("Undo used (-10 PTS)", '#f59e0b');
+        }
+
+        this.hintTargetNode = null;
+        this.audio.playClick();
+        this.updateHUD();
+      }
+
+      giveHint() {
+        if (this.state !== 'PLAYING') return;
+
+        const inv = this.shop.getInventory();
+        if ((inv.hint_pack || 0) <= 0 && this.cash < 10) {
+          this.showBanner("Hints require 1 token or $10 cash! Visit the Garage.", '#ef4444');
+          return;
+        }
+
+        if ((inv.hint_pack || 0) > 0) {
+          inv.hint_pack -= 1;
+          this.shop.saveInventory(inv);
+        } else {
+          this.cash -= 10;
+          this.saveProgress();
+          this.updateHeaderProfile();
+        }
+
+        let currentMask = 0;
+        this.customers.forEach((c, idx) => {
+          if (c.delivered) currentMask |= (1 << idx);
+        });
+
+        const fStations = (this.level.fuelStations || []).map(p => this.graph.nodeId(p[0], p[1]));
+        const solver = new StateSpaceSolver(this.graph, this.graph.nodeId(this.level.depot[0], this.level.depot[1]), this.customers, fStations, this.maxFuel);
+        const res = solver.solve(this.playerNode, currentMask, this.fuel, this.distanceTravelled);
+
+        if (res && res.bestResult && res.bestResult.path.length > 1) {
+          this.hintTargetNode = res.bestResult.path[1];
+          this.audio.playDeliver();
+          this.showBanner("💡 Optimal next move highlighted!", '#fbbf24');
+          this.setRadioText("HQ Dispatch: GPS satellite vector calculated! Follow the pulsing marker.");
+        } else {
+          this.showBanner("No feasible route from this position! Consider Undo.", '#ef4444');
+        }
+
+        this.updateHUD();
+      }
+
+      saveProgress() {
+        localStorage.setItem('pathpilot_cash', this.cash.toString());
+        localStorage.setItem('pathpilot_total_drops', this.totalDrops.toString());
+        localStorage.setItem('pathpilot_total_km', this.totalKm.toString());
+        localStorage.setItem('pathpilot_scores', JSON.stringify(this.levelScores));
+      }
+
+      updateHUD() {
+        document.getElementById('hud-level-num').innerText = this.level.id === 'daily' ? 'Daily' : `Route ${this.level.id}`;
+        document.getElementById('hud-level-name').innerText = this.level.title;
+        document.getElementById('hud-dist').innerText = `${this.distanceTravelled.toFixed(1)} km`;
+        document.getElementById('hud-optimal').innerText = this.optimalDistance ? `${this.optimalDistance.toFixed(1)} km` : '--';
+
+        const deliveredCount = this.customers.filter(c => c.delivered).length;
+        document.getElementById('hud-parcels').innerText = `${deliveredCount} / ${this.customers.length}`;
+
+        const fuelCard = document.getElementById('hud-fuel-card');
+        if (this.maxFuel !== Infinity) {
+          fuelCard.style.display = 'flex';
+          document.getElementById('hud-fuel-val').innerText = `${Math.max(0, this.fuel).toFixed(1)} / ${this.maxFuel} km`;
+          const pct = Math.max(0, Math.min(100, (this.fuel / this.maxFuel) * 100));
+          const bar = document.getElementById('hud-fuel-bar');
+          bar.style.width = `${pct}%`;
+          bar.className = 'hud-fuel-fill';
+          if (pct < 20) {
+            bar.classList.add('critical');
+            if (this.fuel > 0 && Math.floor(this.distanceTravelled) % 2 === 0) {
+              this.audio.playLowFuelAlarm();
+              this.setRadioText("HQ Dispatch: CRITICAL LOW FUEL! Divert to nearest gas station!");
+            }
+          } else if (pct < 40) {
+            bar.classList.add('warning');
+          }
+        } else {
+          fuelCard.style.display = 'none';
+        }
+
+        document.getElementById('hud-cash').innerText = `$${this.cash}`;
+        document.getElementById('hud-score').innerText = `${this.score}`;
+        document.getElementById('btn-undo').disabled = this.undoStack.length === 0;
+      }
+
+      showBanner(text, color = '#38bdf8') {
+        const banner = document.getElementById('game-banner');
+        const textEl = document.getElementById('banner-text');
+        textEl.innerText = text;
+        banner.style.borderColor = color;
+        banner.classList.remove('hidden');
+        clearTimeout(this.bannerTimeout);
+        this.bannerTimeout = setTimeout(() => {
+          banner.classList.add('hidden');
+        }, 3200);
+      }
+
+      setupEventListeners() {
+        window.addEventListener('resize', () => {
+          if (this.currentView === 'game') this.renderer.resize();
+        });
+
+        const handleCanvasInput = (clientX, clientY) => {
+          this.audio.init();
+          const rect = this.canvas.getBoundingClientRect();
+          const px = clientX - rect.left;
+          const py = clientY - rect.top;
+          const clickedNode = this.renderer.screenToNode(px, py, this.level);
+          if (clickedNode !== null) {
+            const valid = this.getValidMoves();
+            if (valid.includes(clickedNode)) {
+              this.makeMove(clickedNode);
+            }
+          }
+        };
+
+        this.canvas.addEventListener('click', (e) => handleCanvasInput(e.clientX, e.clientY));
+        this.canvas.addEventListener('mousemove', (e) => {
+          const rect = this.canvas.getBoundingClientRect();
+          const px = e.clientX - rect.left;
+          const py = e.clientY - rect.top;
+          this.hoveredNode = this.renderer.screenToNode(px, py, this.level);
+        });
+        this.canvas.addEventListener('mouseleave', () => {
+          this.hoveredNode = null;
+        });
+
+        this.canvas.addEventListener('touchstart', (e) => {
+          if (e.touches.length > 0) {
+            e.preventDefault();
+            handleCanvasInput(e.touches[0].clientX, e.touches[0].clientY);
+          }
+        }, { passive: false });
+
+        document.querySelectorAll('.dpad-btn[data-dx]').forEach(btn => {
+          const handleDir = () => {
+            const dx = parseInt(btn.getAttribute('data-dx'), 10);
+            const dy = parseInt(btn.getAttribute('data-dy'), 10);
+            this.handleDirectionalInput(dx, dy);
+          };
+          btn.addEventListener('touchstart', (e) => { e.preventDefault(); handleDir(); });
+          btn.addEventListener('click', handleDir);
+        });
+        document.getElementById('dpad-center').addEventListener('click', () => this.undo());
+
+        window.addEventListener('keydown', (e) => {
+          if (this.currentView !== 'game' || this.state !== 'PLAYING') return;
+
+          if ((e.ctrlKey && e.key.toLowerCase() === 'z') || e.key.toLowerCase() === 'u') {
+            this.undo();
+            return;
+          }
+          if (e.key.toLowerCase() === 'r') {
+            this.startLevel(this.currentLevelIndex);
+            return;
+          }
+          if (e.key.toLowerCase() === 'h') {
+            this.giveHint();
+            return;
+          }
+
+          let dx = 0, dy = 0;
+          switch (e.key) {
+            case 'ArrowUp': case 'w': case 'W': case '8': dy = -1; break;
+            case 'ArrowDown': case 's': case 'S': case '2': dy = 1; break;
+            case 'ArrowLeft': case 'a': case 'A': case '4': dx = -1; break;
+            case 'ArrowRight': case 'd': case 'D': case '6': dx = 1; break;
+            case 'q': case 'Q': case '7': dx = -1; dy = -1; break;
+            case 'e': case 'E': case '9': dx = 1; dy = -1; break;
+            case 'z': case 'Z': case '1': dx = -1; dy = 1; break;
+            case 'c': case 'C': case '3': dx = 1; dy = 1; break;
+            default: return;
+          }
+
+          this.handleDirectionalInput(dx, dy);
+        });
+
+        document.getElementById('btn-undo').addEventListener('click', () => this.undo());
+        document.getElementById('btn-restart').addEventListener('click', () => this.startLevel(this.currentLevelIndex));
+        document.getElementById('btn-hint').addEventListener('click', () => this.giveHint());
+        document.getElementById('btn-costs').addEventListener('click', () => {
+          this.renderer.showRoadCosts = !this.renderer.showRoadCosts;
+          this.showBanner(this.renderer.showRoadCosts ? "Road cost badges ON" : "Road cost badges OFF");
+        });
+        document.getElementById('btn-sound').addEventListener('click', (e) => {
+          const muted = this.audio.toggleMute();
+          e.currentTarget.innerText = muted ? '🔇' : '🔊';
+        });
+        document.getElementById('btn-theme').addEventListener('click', (e) => {
+          const current = document.documentElement.getAttribute('data-theme');
+          const next = current === 'light' ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', next);
+          e.currentTarget.innerText = next === 'light' ? '☀️' : '🌙';
+        });
+        document.getElementById('btn-help').addEventListener('click', () => {
+          document.getElementById('modal-help').classList.add('active');
+        });
+
+        document.getElementById('btn-start-level').addEventListener('click', () => {
+          document.getElementById('modal-intro').classList.remove('active');
+          this.state = 'PLAYING';
+        });
+
+        document.getElementById('btn-next-level').addEventListener('click', () => {
+          document.getElementById('modal-complete').classList.remove('active');
+          if (this.currentLevelIndex + 1 < LEVELS.length) {
+            this.startLevel(this.currentLevelIndex + 1);
+          } else {
+            this.showBanner("All 15 levels conquered! You are a Dispatch Legend! 🏆", '#fbbf24');
+            this.switchView('dashboard');
+          }
+        });
+
+        document.getElementById('btn-replay').addEventListener('click', () => {
+          document.getElementById('modal-complete').classList.remove('active');
+          this.startLevel(this.currentLevelIndex);
+        });
+
+        document.getElementById('btn-show-optimal').addEventListener('click', () => {
+          document.getElementById('modal-complete').classList.remove('active');
+          this.showOptimalGhost = true;
+          this.showBanner("Ghost line reveals the computer's optimal route! 👻", '#fbbf24');
+        });
+
+        document.getElementById('btn-retry').addEventListener('click', () => {
+          document.getElementById('modal-failed').classList.remove('active');
+          this.startLevel(this.currentLevelIndex);
+        });
+
+        document.getElementById('btn-failed-tow').addEventListener('click', () => {
+          const inv = this.shop.getInventory();
+          if ((inv.emergency_tow || 0) > 0) {
+            inv.emergency_tow -= 1;
+            this.shop.saveInventory(inv);
+            document.getElementById('modal-failed').classList.remove('active');
+            const depotNode = this.graph.nodeId(this.level.depot[0], this.level.depot[1]);
+            this.playerNode = depotNode;
+            this.targetNode = depotNode;
+            this.moveProgress = 1.0;
+            this.fuel = this.maxFuel;
+            this.state = 'PLAYING';
+            this.showBanner("Emergency Tow used: safely returned to Depot!", '#38bdf8');
+            this.updateHUD();
+          }
+        });
+
+        document.querySelectorAll('[data-close]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const id = e.currentTarget.getAttribute('data-close');
+            document.getElementById(id).classList.remove('active');
+            if (this.state === 'BRIEFING') this.state = 'PLAYING';
+          });
+        });
+      }
+
+      handleDirectionalInput(dx, dy) {
+        if (this.moveProgress < 1.0) return;
+        const curX = this.playerNode % this.level.width;
+        const curY = Math.floor(this.playerNode / this.level.width);
+        const nx = curX + dx;
+        const ny = curY + dy;
+        if (nx >= 0 && nx < this.level.width && ny >= 0 && ny < this.level.height) {
+          const nextNode = this.graph.nodeId(nx, ny);
+          const valid = this.getValidMoves();
+          if (valid.includes(nextNode)) {
+            this.makeMove(nextNode);
+          }
+        }
+      }
+
+      openShop() {
+        document.getElementById('shop-player-cash').innerText = `$${this.cash}`;
+        const container = document.getElementById('shop-items-container');
+        container.innerHTML = '';
+        const inv = this.shop.getInventory();
+
+        this.shop.items.forEach(item => {
+          const qty = inv[item.id] || 0;
+          const card = document.createElement('div');
+          card.className = 'shop-card';
+          card.innerHTML = `
+            <div class="shop-info">
+              <span class="shop-name">${item.name}</span>
+              <span class="shop-desc">${item.desc}</span>
+              <span class="shop-qty">Owned: ${qty} / ${item.maxQty}</span>
+            </div>
+            <button class="btn-action btn-primary" ${this.cash < item.cost || qty >= item.maxQty ? 'disabled' : ''}>
+              Buy $${item.cost}
+            </button>
+          `;
+          card.querySelector('button').addEventListener('click', () => {
+            const res = this.shop.buy(item.id, this.cash);
+            if (res.success) {
+              this.cash = res.newCash;
+              this.saveProgress();
+              this.audio.playDeliver();
+              this.updateHeaderProfile();
+              this.openShop();
+              this.updateHUD();
+            }
+          });
+          container.appendChild(card);
+        });
+
+        document.getElementById('modal-shop').classList.add('active');
+      }
+
+      openLeaderboard() {
+        const tbody = document.getElementById('leaderboard-tbody');
+        tbody.innerHTML = '';
+
+        const scores = [];
+        LEVELS.forEach(lvl => {
+          const rec = this.levelScores[`lvl_${lvl.id}`];
+          if (rec) {
+            scores.push({
+              level: lvl.id,
+              name: `${this.callsign} (${lvl.title})`,
+              score: rec.score,
+              stars: rec.stars,
+              date: new Date().toLocaleDateString()
+            });
+          }
+        });
+
+        if (scores.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No completed routes yet! Complete levels to log records.</td></tr>`;
+        } else {
+          scores.sort((a, b) => b.score - a.score);
+          scores.forEach((s, idx) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${idx + 1}</td>
+              <td><strong>${s.name}</strong></td>
+              <td style="color: var(--accent-amber); font-weight: 700;">${s.score}</td>
+              <td style="color: #fbbf24;">${'★'.repeat(s.stars)}</td>
+              <td style="color: var(--text-muted);">${s.date}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+
+        document.getElementById('modal-leaderboard').classList.add('active');
+      }
+    }
+
+    // Launch game on DOM load
+    window.addEventListener('DOMContentLoaded', () => {
+      window.game = new GameEngine();
+    });
+  </script>
+</body>
+</html>
